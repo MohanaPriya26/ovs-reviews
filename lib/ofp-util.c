@@ -106,10 +106,10 @@ ofputil_wildcard_from_ofpfw10(uint32_t ofpfw, struct flow_wildcards *wc)
                                                  >> OFPFW10_NW_DST_SHIFT);
 
     if (!(ofpfw & OFPFW10_TP_SRC)) {
-        wc->masks.tp_src = htons(UINT16_MAX);
+        wc->masks.tp_src = OVS_BE16_MAX;
     }
     if (!(ofpfw & OFPFW10_TP_DST)) {
-        wc->masks.tp_dst = htons(UINT16_MAX);
+        wc->masks.tp_dst = OVS_BE16_MAX;
     }
 
     if (!(ofpfw & OFPFW10_DL_SRC)) {
@@ -119,7 +119,7 @@ ofputil_wildcard_from_ofpfw10(uint32_t ofpfw, struct flow_wildcards *wc)
         memset(wc->masks.dl_dst, 0xff, ETH_ADDR_LEN);
     }
     if (!(ofpfw & OFPFW10_DL_TYPE)) {
-        wc->masks.dl_type = htons(UINT16_MAX);
+        wc->masks.dl_type = OVS_BE16_MAX;
     }
 
     /* VLAN TCI mask. */
@@ -335,7 +335,7 @@ ofputil_match_from_ofp11_match(const struct ofp11_match *ofmatch,
         if (ofmatch->dl_vlan == htons(OFPVID11_NONE)) {
             /* Match only packets without a VLAN tag. */
             match->flow.vlan_tci = htons(0);
-            match->wc.masks.vlan_tci = htons(UINT16_MAX);
+            match->wc.masks.vlan_tci = OVS_BE16_MAX;
         } else {
             if (ofmatch->dl_vlan == htons(OFPVID11_ANY)) {
                 /* Match any packet with a VLAN tag regardless of VID. */
@@ -1144,8 +1144,8 @@ ofputil_usable_protocols(const struct match *match)
     }
 
     /* NXM and OXM support bitwise matching on transport port. */
-    if ((wc->masks.tp_src && wc->masks.tp_src != htons(UINT16_MAX)) ||
-        (wc->masks.tp_dst && wc->masks.tp_dst != htons(UINT16_MAX))) {
+    if ((wc->masks.tp_src && wc->masks.tp_src != OVS_BE16_MAX) ||
+        (wc->masks.tp_dst && wc->masks.tp_dst != OVS_BE16_MAX)) {
         return OFPUTIL_P_OF10_NXM_ANY | OFPUTIL_P_OF12_OXM
             | OFPUTIL_P_OF13_OXM;
     }
@@ -1523,7 +1523,7 @@ ofputil_decode_flow_mod(struct ofputil_flow_mod *fm,
         } else {
             fm->cookie = ofm->cookie;
             fm->cookie_mask = ofm->cookie_mask;
-            fm->new_cookie = htonll(UINT64_MAX);
+            fm->new_cookie = OVS_BE64_MAX;
         }
         fm->command = ofm->command;
         fm->table_id = ofm->table_id;
@@ -3403,7 +3403,7 @@ ofputil_decode_role_message(const struct ofp_header *oh,
         rr->role = ntohl(orr->role);
         if (raw == OFPRAW_OFPT12_ROLE_REQUEST
             ? orr->role == htonl(OFPCR12_ROLE_NOCHANGE)
-            : orr->generation_id == htonll(UINT64_MAX)) {
+            : orr->generation_id == OVS_BE64_MAX) {
             rr->have_generation_id = false;
             rr->generation_id = 0;
         } else {

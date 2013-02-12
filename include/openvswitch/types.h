@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011 Nicira, Inc.
+ * Copyright (c) 2010, 2011, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,10 @@
 typedef __be16 ovs_be16;
 typedef __be32 ovs_be32;
 typedef __be64 ovs_be64;
+
+#define OVS_BE16_MAX ((OVS_FORCE ovs_be16) 0xffff)
+#define OVS_BE32_MAX ((OVS_FORCE ovs_be32) 0xffffffff)
+#define OVS_BE64_MAX ((OVS_FORCE ovs_be64) 0xffffffffffffffffULL)
 
 /* Netlink and OpenFlow both contain 64-bit values that are only guaranteed to
  * be aligned on 32-bit boundaries.  These types help.

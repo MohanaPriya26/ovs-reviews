@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012 Nicira, Inc.
+ * Copyright (c) 2010, 2011, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -383,7 +383,7 @@ parse_metadata(struct ofpbuf *b, char *arg)
         *mask = '\0';
         om->mask = htonll(str_to_u64(mask + 1));
     } else {
-        om->mask = htonll(UINT64_MAX);
+        om->mask = OVS_BE64_MAX;
     }
 
     om->metadata = htonll(str_to_u64(arg));
@@ -895,7 +895,7 @@ parse_ofp_str(struct ofputil_flow_mod *fm, int command, const char *str_,
     fm->cookie_mask = htonll(0);
     if (command == OFPFC_MODIFY || command == OFPFC_MODIFY_STRICT) {
         /* For modify, by default, don't update the cookie. */
-        fm->new_cookie = htonll(UINT64_MAX);
+        fm->new_cookie = OVS_BE64_MAX;
     } else{
         fm->new_cookie = htonll(0);
     }
@@ -995,7 +995,7 @@ parse_ofp_str(struct ofputil_flow_mod *fm, int command, const char *str_,
             }
         }
     }
-    if (!fm->cookie_mask && fm->new_cookie == htonll(UINT64_MAX)
+    if (!fm->cookie_mask && fm->new_cookie == OVS_BE64_MAX
             && (command == OFPFC_MODIFY || command == OFPFC_MODIFY_STRICT)) {
         /* On modifies without a mask, we are supposed to add a flow if
          * one does not exist.  If a cookie wasn't been specified, use a

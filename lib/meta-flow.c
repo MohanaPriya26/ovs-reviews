@@ -2106,12 +2106,12 @@ mf_from_ipv4_string(const struct mf_field *mf, const char *s,
             return xasprintf("%s: network prefix bits not between 1 and "
                              "32", s);
         } else if (prefix == 32) {
-            *mask = htonl(UINT32_MAX);
+            *mask = OVS_BE32_MAX;
         } else {
             *mask = htonl(((1u << prefix) - 1) << (32 - prefix));
         }
     } else if (sscanf(s, IP_SCAN_FMT, IP_SCAN_ARGS(ip)) == IP_SCAN_COUNT) {
-        *mask = htonl(UINT32_MAX);
+        *mask = OVS_BE32_MAX;
     } else {
         return xasprintf("%s: invalid IP address", s);
     }
@@ -2171,7 +2171,7 @@ mf_from_ofp_port_string(const struct mf_field *mf, const char *s,
                          s, mf->name);
     } else if (ofputil_port_from_string(s, &port)) {
         *valuep = htons(port);
-        *maskp = htons(UINT16_MAX);
+        *maskp = OVS_BE16_MAX;
         return NULL;
     } else {
         return mf_from_integer_string(mf, s,
@@ -2278,7 +2278,7 @@ static char *
 mf_from_tun_flags_string(const char *s, ovs_be16 *valuep, ovs_be16 *maskp)
 {
     if (!parse_flow_tun_flags(s, flow_tun_flag_to_string, valuep)) {
-        *maskp = htons(UINT16_MAX);
+        *maskp = OVS_BE16_MAX;
         return NULL;
     }
 
@@ -2435,8 +2435,7 @@ mf_format(const struct mf_field *mf,
         break;
 
     case MFS_IPV4:
-        ip_format_masked(value->be32, mask ? mask->be32 : htonl(UINT32_MAX),
-                         s);
+        ip_format_masked(value->be32, mask ? mask->be32 : OVS_BE32_MAX, s);
         break;
 
     case MFS_IPV6:

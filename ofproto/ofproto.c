@@ -2462,8 +2462,8 @@ handle_table_stats_request(struct ofconn *ofconn,
         ots[i].apply_actions = htonl(OFPAT11_OUTPUT);
         ots[i].write_setfields = htonll(OFPXMT12_MASK);
         ots[i].apply_setfields = htonll(OFPXMT12_MASK);
-        ots[i].metadata_match = htonll(UINT64_MAX);
-        ots[i].metadata_write = htonll(UINT64_MAX);
+        ots[i].metadata_match = OVS_BE64_MAX;
+        ots[i].metadata_write = OVS_BE64_MAX;
         ots[i].instructions = htonl(OFPIT11_ALL);
         ots[i].config = htonl(OFPTC11_TABLE_MISS_MASK);
         ots[i].max_entries = htonl(1000000); /* An arbitrary big number. */
@@ -3230,7 +3230,7 @@ modify_flows__(struct ofproto *ofproto, struct ofconn *ofconn,
 
         actions_changed = !ofpacts_equal(fm->ofpacts, fm->ofpacts_len,
                                          rule->ofpacts, rule->ofpacts_len);
-        new_cookie = (fm->new_cookie != htonll(UINT64_MAX)
+        new_cookie = (fm->new_cookie != OVS_BE64_MAX
                       ? fm->new_cookie
                       : rule->flow_cookie);
 
@@ -3256,7 +3256,7 @@ modify_flows_add(struct ofproto *ofproto, struct ofconn *ofconn,
                  const struct ofputil_flow_mod *fm,
                  const struct ofp_header *request)
 {
-    if (fm->cookie_mask != htonll(0) || fm->new_cookie == htonll(UINT64_MAX)) {
+    if (fm->cookie_mask != htonll(0) || fm->new_cookie == OVS_BE64_MAX) {
         return 0;
     }
     return add_flow(ofproto, ofconn, fm, request);

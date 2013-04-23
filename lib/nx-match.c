@@ -20,7 +20,7 @@
 
 #include <netinet/icmp6.h>
 
-#include "classifier.h"
+#include "byte-order.h"
 #include "dynamic-string.h"
 #include "meta-flow.h"
 #include "ofp-actions.h"
@@ -28,9 +28,6 @@
 #include "ofp-util.h"
 #include "ofpbuf.h"
 #include "openflow/nicira-ext.h"
-#include "packets.h"
-#include "unaligned.h"
-#include "util.h"
 #include "vlog.h"
 
 VLOG_DEFINE_THIS_MODULE(nx_match);

@@ -17,7 +17,6 @@
 #ifndef CONNMGR_H
 #define CONNMGR_H 1
 
-#include "classifier.h"
 #include "hmap.h"
 #include "list.h"
 #include "match.h"

@@ -33,7 +33,6 @@
 #include "ofp-util.h"
 #include "ofpbuf.h"
 #include "openflow/openflow.h"
-#include "packets.h"
 #include "socket-util.h"
 #include "vlog.h"
 

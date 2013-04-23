@@ -23,15 +23,13 @@
 #include <netinet/icmp6.h>
 #include <netinet/ip6.h>
 
-#include "classifier.h"
+#include "byte-order.h"
 #include "dynamic-string.h"
 #include "ofp-errors.h"
 #include "ofp-util.h"
-#include "packets.h"
 #include "random.h"
 #include "shash.h"
 #include "socket-util.h"
-#include "unaligned.h"
 #include "vlog.h"
 
 VLOG_DEFINE_THIS_MODULE(meta_flow);

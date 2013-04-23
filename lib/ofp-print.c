@@ -17,23 +17,17 @@
 #include <config.h>
 #include "ofp-print.h"
 
-#include <errno.h>
 #include <inttypes.h>
 #include <sys/types.h>
 #include <netinet/in.h>
-#include <sys/wait.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <ctype.h>
 
-#include "bundle.h"
 #include "byte-order.h"
 #include "compiler.h"
 #include "dynamic-string.h"
 #include "flow.h"
-#include "learn.h"
-#include "multipath.h"
-#include "meta-flow.h"
 #include "netdev.h"
 #include "nx-match.h"
 #include "ofp-actions.h"
@@ -44,13 +38,11 @@
 #include "openflow/openflow.h"
 #include "openflow/nicira-ext.h"
 #include "packets.h"
-#include "type-props.h"
 #include "unaligned.h"
 #include "util.h"
 
 static void ofp_print_queue_name(struct ds *string, uint32_t port);
 static void ofp_print_error(struct ds *, enum ofperr);
-
 
 /* Returns a string that represents the contents of the Ethernet frame in the
  * 'len' bytes starting at 'data'.  The caller must free the returned string.*/

@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 #include "stream.h"
+#include "util.h"
 
 /* Active stream connection. */
 

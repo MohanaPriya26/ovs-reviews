@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010 Nicira, Inc.
+ * Copyright (c) 2008, 2009, 2010, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include <config.h>
 #include "leak-checker.h"
 #include <inttypes.h>
+#include <string.h>
 #include "backtrace.h"
 #include "vlog.h"
 

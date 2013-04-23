@@ -17,14 +17,12 @@
 #ifndef VLOG_H
 #define VLOG_H 1
 
-#include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <time.h>
 #include "compiler.h"
 #include "sat-math.h"
 #include "token-bucket.h"
-#include "util.h"
 
 #ifdef  __cplusplus
 extern "C" {

@@ -26,13 +26,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <syslog.h>
-#include <time.h>
 #include <unistd.h>
 #include "coverage.h"
 #include "dirs.h"
 #include "dynamic-string.h"
 #include "ofpbuf.h"
-#include "sat-math.h"
 #include "svec.h"
 #include "timeval.h"
 #include "unixctl.h"

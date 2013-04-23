@@ -20,7 +20,6 @@
 #include <string.h>
 #include <time.h>
 #include "timeval.h"
-#include "util.h"
 
 /* Initializes 'ds' as an empty string buffer. */
 void

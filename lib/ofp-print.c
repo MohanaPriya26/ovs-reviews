@@ -39,7 +39,6 @@
 #include "openflow/nicira-ext.h"
 #include "packets.h"
 #include "unaligned.h"
-#include "util.h"
 
 static void ofp_print_queue_name(struct ds *string, uint32_t port);
 static void ofp_print_error(struct ds *, enum ofperr);

@@ -40,7 +40,6 @@
 
 #include "openvswitch/types.h"
 #include "ofp-errors.h"
-#include "util.h"
 
 struct list;
 

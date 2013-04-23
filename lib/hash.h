@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include "util.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011 Nicira, Inc.
+ * Copyright (c) 2010, 2011, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include "byte-order.h"
 #include "openvswitch/types.h"
 #include "type-props.h"
-#include "util.h"
 
 /* Public API. */
 static inline uint16_t get_unaligned_u16(const uint16_t *);

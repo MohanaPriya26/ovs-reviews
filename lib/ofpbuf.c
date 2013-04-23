@@ -19,7 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "dynamic-string.h"
-#include "util.h"
 
 static void
 ofpbuf_use__(struct ofpbuf *b, void *base, size_t allocated,

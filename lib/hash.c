@@ -17,6 +17,7 @@
 #include "hash.h"
 #include <string.h>
 #include "unaligned.h"
+#include "util.h"
 
 /* Returns the hash of 'a', 'b', and 'c'. */
 uint32_t

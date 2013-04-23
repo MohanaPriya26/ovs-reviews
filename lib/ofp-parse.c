@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012 Nicira, Inc.
+ * Copyright (c) 2010, 2011, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@
 #include "learn.h"
 #include "meta-flow.h"
 #include "multipath.h"
-#include "netdev.h"
 #include "nx-match.h"
 #include "ofp-actions.h"
 #include "ofp-util.h"
@@ -36,7 +35,6 @@
 #include "openflow/openflow.h"
 #include "packets.h"
 #include "socket-util.h"
-#include "vconn.h"
 #include "vlog.h"
 
 VLOG_DEFINE_THIS_MODULE(ofp_parse);

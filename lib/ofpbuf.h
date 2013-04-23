@@ -18,9 +18,7 @@
 #define OFPBUF_H 1
 
 #include <stddef.h>
-#include <stdint.h>
 #include "list.h"
-#include "util.h"
 
 #ifdef  __cplusplus
 extern "C" {

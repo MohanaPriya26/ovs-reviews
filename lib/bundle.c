@@ -21,7 +21,6 @@
 #include <inttypes.h>
 
 #include "dynamic-string.h"
-#include "multipath.h"
 #include "meta-flow.h"
 #include "nx-match.h"
 #include "ofpbuf.h"

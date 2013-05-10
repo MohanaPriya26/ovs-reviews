@@ -336,8 +336,8 @@ invalid:
 
 }
 
-/* Initializes 'flow' members from 'packet', 'skb_priority', 'tnl', and
- * 'ofp_in_port'.
+/* Initializes 'flow' data members from 'packet'.  Zeroes 'flow->md', which the
+ * caller must initialize appropriately afterward.
  *
  * Initializes 'packet' header pointers as follows:
  *
@@ -356,9 +356,7 @@ invalid:
  *      present and has a correct length, and otherwise NULL.
  */
 void
-flow_extract(struct ofpbuf *packet, uint32_t skb_priority, uint32_t skb_mark,
-             const struct flow_tnl *tnl, uint16_t ofp_in_port,
-             struct flow *flow)
+flow_extract(struct ofpbuf *packet, struct flow *flow)
 {
     struct ofpbuf b = *packet;
     struct eth_header *eth;
@@ -366,14 +364,6 @@ flow_extract(struct ofpbuf *packet, uint32_t skb_priority, uint32_t skb_mark,
     COVERAGE_INC(flow_extract);
 
     memset(flow, 0, sizeof *flow);
-
-    if (tnl) {
-        ovs_assert(tnl != &flow->md.tunnel);
-        flow->md.tunnel = *tnl;
-    }
-    flow->md.in_port = ofp_in_port;
-    flow->md.skb_priority = skb_priority;
-    flow->md.skb_mark = skb_mark;
 
     packet->l2   = b.data;
     packet->l2_5 = NULL;

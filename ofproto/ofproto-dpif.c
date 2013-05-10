@@ -4030,8 +4030,8 @@ handle_miss_upcalls(struct dpif_backer *backer, struct dpif_upcall *upcalls,
         }
 
         ofproto->n_missed++;
-        flow_extract(upcall->packet, flow.md.skb_priority, flow.md.skb_mark,
-                     &flow.md.tunnel, flow.md.in_port, &miss->flow);
+        flow_extract(upcall->packet, &miss->flow);
+        miss->flow.md = flow.md;
 
         /* Add other packets to a to-do list. */
         hash = flow_hash(&miss->flow, 0);
@@ -5821,7 +5821,8 @@ send_packet(const struct ofport_dpif *ofport, struct ofpbuf *packet)
     ofpbuf_use_stack(&key, &keybuf, sizeof keybuf);
 
     /* Use OFPP_NONE as the in_port to avoid special packet processing. */
-    flow_extract(packet, 0, 0, NULL, OFPP_NONE, &flow);
+    flow_extract(packet, &flow);
+    flow.md.in_port = OFPP_NONE;
     odp_flow_key_from_flow(&key, &flow, ofp_port_to_odp_port(ofproto,
                                                              OFPP_LOCAL));
     dpif_flow_stats_extract(&flow, packet, time_msec(), &stats);
@@ -8227,7 +8228,10 @@ ofproto_unixctl_trace(struct unixctl_conn *conn, int argc, const char *argv[],
         ds_put_cstr(&result, s);
         free(s);
 
-        flow_extract(packet, priority, mark, NULL, in_port, &flow);
+        flow_extract(packet, &flow);
+        flow.md.skb_priority = priority;
+        flow.md.skb_mark = mark;
+        flow.md.in_port = in_port;
         flow.md.tunnel.tun_id = tun_id;
         initial_vals.vlan_tci = flow.vlan_tci;
     } else {

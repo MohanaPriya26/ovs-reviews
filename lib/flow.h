@@ -116,8 +116,7 @@ BUILD_ASSERT_DECL(sizeof(struct flow) % 4 == 0);
 BUILD_ASSERT_DECL(sizeof(struct flow) == sizeof(struct flow_metadata) + 104 &&
                   FLOW_WC_SEQ == 20);
 
-void flow_extract(struct ofpbuf *, uint32_t priority, uint32_t mark,
-                  const struct flow_tnl *, uint16_t in_port, struct flow *);
+void flow_extract(struct ofpbuf *, struct flow *);
 
 void flow_zero_wildcards(struct flow *, const struct flow_wildcards *);
 

@@ -558,7 +558,8 @@ process_packet_in(struct lswitch *sw, const struct ofp_header *oh)
 
     /* Extract flow data from 'opi' into 'flow'. */
     ofpbuf_use_const(&pkt, pi.packet, pi.packet_len);
-    flow_extract(&pkt, 0, 0, &pi.fmd.tunnel, pi.fmd.in_port, &flow);
+    flow_extract(&pkt, &flow);
+    flow.md = pi.fmd;
 
     /* Choose output port. */
     out_port = lswitch_choose_destination(sw, &flow);

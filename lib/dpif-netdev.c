@@ -941,7 +941,7 @@ dpif_netdev_execute(struct dpif *dpif, const struct dpif_execute *execute)
     ofpbuf_reserve(&copy, DP_NETDEV_HEADROOM);
     ofpbuf_put(&copy, execute->packet->data, execute->packet->size);
 
-    flow_extract(&copy, 0, 0, NULL, -1, &key);
+    flow_extract(&copy, &key);
     error = dpif_netdev_flow_from_nlattrs(execute->key, execute->key_len,
                                           &key);
     if (!error) {
@@ -1039,7 +1039,8 @@ dp_netdev_port_input(struct dp_netdev *dp, struct dp_netdev_port *port,
     if (packet->size < ETH_HEADER_LEN) {
         return;
     }
-    flow_extract(packet, 0, 0, NULL, port->port_no, &key);
+    flow_extract(packet, &key);
+    key.md.in_port = port->port_no;
     flow = dp_netdev_lookup_flow(dp, &key);
     if (flow) {
         dp_netdev_flow_used(flow, packet);

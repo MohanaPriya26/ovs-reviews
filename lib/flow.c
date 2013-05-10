@@ -497,6 +497,8 @@ flow_get_metadata(const struct flow *flow, struct flow_metadata *fmd)
     fmd->metadata = flow->metadata;
     memcpy(fmd->regs, flow->regs, sizeof fmd->regs);
     fmd->in_port = flow->in_port;
+    fmd->skb_priority = flow->skb_priority;
+    fmd->skb_mark = flow->skb_mark;
 }
 
 char *

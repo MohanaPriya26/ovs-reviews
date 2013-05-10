@@ -2445,6 +2445,8 @@ ofputil_decode_packet_in_finish(struct ofputil_packet_in *pin,
     pin->fmd.tunnel = match->flow.tunnel;
     pin->fmd.metadata = match->flow.metadata;
     memcpy(pin->fmd.regs, match->flow.regs, sizeof pin->fmd.regs);
+    pin->fmd.skb_priority = match->flow.skb_priority;
+    pin->fmd.skb_mark = match->flow.skb_mark;
 }
 
 enum ofperr
@@ -2560,6 +2562,14 @@ ofputil_packet_in_to_match(const struct ofputil_packet_in *pin,
     }
 
     match_set_in_port(match, pin->fmd.in_port);
+
+    if (pin->fmd.skb_priority) {
+        match_set_skb_priority(match, pin->fmd.skb_priority);
+    }
+
+    if (pin->fmd.skb_mark) {
+        match_set_skb_priority(match, pin->fmd.skb_mark);
+    }
 }
 
 /* Converts abstract ofputil_packet_in 'pin' into a PACKET_IN message

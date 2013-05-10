@@ -121,6 +121,8 @@ struct flow_metadata {
     ovs_be64 metadata;               /* OpenFlow 1.1+ metadata field. */
     uint32_t regs[FLOW_N_REGS];      /* Registers. */
     uint32_t in_port;                /* OpenFlow port or zero. */
+    uint32_t skb_priority;           /* Packet priority for QoS. */
+    uint32_t skb_mark;               /* Packet mark. */
 };
 
 void flow_extract(struct ofpbuf *, uint32_t priority, uint32_t mark,

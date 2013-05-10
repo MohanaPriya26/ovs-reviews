@@ -579,8 +579,8 @@ nx_put_raw(struct ofpbuf *b, bool oxm, const struct match *match,
     BUILD_ASSERT_DECL(FLOW_WC_SEQ == 20);
 
     /* Metadata. */
-    if (match->wc.masks.in_port) {
-        uint16_t in_port = flow->in_port;
+    if (match->wc.masks.md.in_port) {
+        uint32_t in_port = flow->md.in_port;
         if (oxm) {
             nxm_put_32(b, OXM_OF_IN_PORT, ofputil_port_to_ofp11(in_port));
         } else {
@@ -690,22 +690,23 @@ nx_put_raw(struct ofpbuf *b, bool oxm, const struct match *match,
 
     /* Tunnel ID. */
     nxm_put_64m(b, oxm ? OXM_OF_TUNNEL_ID : NXM_NX_TUN_ID,
-                flow->tunnel.tun_id, match->wc.masks.tunnel.tun_id);
+                flow->md.tunnel.tun_id, match->wc.masks.md.tunnel.tun_id);
 
     /* Other tunnel metadata. */
     nxm_put_32m(b, NXM_NX_TUN_IPV4_SRC,
-                flow->tunnel.ip_src, match->wc.masks.tunnel.ip_src);
+                flow->md.tunnel.ip_src, match->wc.masks.md.tunnel.ip_src);
     nxm_put_32m(b, NXM_NX_TUN_IPV4_DST,
-                flow->tunnel.ip_dst, match->wc.masks.tunnel.ip_dst);
+                flow->md.tunnel.ip_dst, match->wc.masks.md.tunnel.ip_dst);
 
     /* Registers. */
     for (i = 0; i < FLOW_N_REGS; i++) {
-        nxm_put_32m(b, NXM_NX_REG(i),
-                    htonl(flow->regs[i]), htonl(match->wc.masks.regs[i]));
+        nxm_put_32m(b, NXM_NX_REG(i), htonl(flow->md.regs[i]),
+                    htonl(match->wc.masks.md.regs[i]));
     }
 
     /* OpenFlow 1.1+ Metadata. */
-    nxm_put_64m(b, OXM_OF_METADATA, flow->metadata, match->wc.masks.metadata);
+    nxm_put_64m(b, OXM_OF_METADATA,
+                flow->md.metadata, match->wc.masks.md.metadata);
 
     /* Cookie. */
     nxm_put_64m(b, NXM_NX_COOKIE, cookie, cookie_mask);

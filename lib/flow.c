@@ -368,12 +368,12 @@ flow_extract(struct ofpbuf *packet, uint32_t skb_priority, uint32_t skb_mark,
     memset(flow, 0, sizeof *flow);
 
     if (tnl) {
-        ovs_assert(tnl != &flow->tunnel);
-        flow->tunnel = *tnl;
+        ovs_assert(tnl != &flow->md.tunnel);
+        flow->md.tunnel = *tnl;
     }
-    flow->in_port = ofp_in_port;
-    flow->skb_priority = skb_priority;
-    flow->skb_mark = skb_mark;
+    flow->md.in_port = ofp_in_port;
+    flow->md.skb_priority = skb_priority;
+    flow->md.skb_mark = skb_mark;
 
     packet->l2   = b.data;
     packet->l2_5 = NULL;
@@ -485,20 +485,6 @@ flow_zero_wildcards(struct flow *flow, const struct flow_wildcards *wildcards)
     for (i = 0; i < FLOW_U32S; i++) {
         flow_u32[i] &= wc_u32[i];
     }
-}
-
-/* Initializes 'fmd' with the metadata found in 'flow'. */
-void
-flow_get_metadata(const struct flow *flow, struct flow_metadata *fmd)
-{
-    BUILD_ASSERT_DECL(FLOW_WC_SEQ == 20);
-
-    fmd->tunnel = flow->tunnel;
-    fmd->metadata = flow->metadata;
-    memcpy(fmd->regs, flow->regs, sizeof fmd->regs);
-    fmd->in_port = flow->in_port;
-    fmd->skb_priority = flow->skb_priority;
-    fmd->skb_mark = flow->skb_mark;
 }
 
 char *
@@ -680,7 +666,7 @@ flow_equal_except(const struct flow *a, const struct flow *b,
 void
 flow_wildcards_set_reg_mask(struct flow_wildcards *wc, int idx, uint32_t mask)
 {
-    wc->masks.regs[idx] = mask;
+    wc->masks.md.regs[idx] = mask;
 }
 
 /* Hashes 'flow' based on its L2 through L4 protocol information. */

@@ -68,29 +68,30 @@ struct flow_tnl {
     uint8_t ip_ttl;
 };
 
-/*
-* A flow in the network.
-*
-* The meaning of 'in_port' is context-dependent.  In most cases, it is a
-* 16-bit OpenFlow 1.0 port number.  In the software datapath interface (dpif)
-* layer and its implementations (e.g. dpif-linux, dpif-netdev), it is instead
-* a 32-bit datapath port number.
-*/
+/* The meaning of 'in_port' is context-dependent.  In most cases, it is a
+ * 16-bit OpenFlow 1.0 port number.  In the software datapath interface (dpif)
+ * layer and its implementations (e.g. dpif-linux, dpif-netdev), it is instead
+ * a 32-bit datapath port number. */
+struct flow_metadata {
+    struct flow_tnl tunnel;          /* Encapsulating tunnel parameters. */
+    ovs_be64 metadata;               /* OpenFlow 1.1+ metadata field. */
+    uint32_t regs[FLOW_N_REGS];      /* Registers. */
+    uint32_t in_port;                /* Input port. OpenFlow port number unless
+                                        in DPIF code, in which case it is the
+                                        datapath port number. */
+    uint32_t skb_priority;           /* Packet priority for QoS. */
+    uint32_t skb_mark;               /* Packet mark. */
+};
+
+/* A flow in the network. */
 struct flow {
-    struct flow_tnl tunnel;     /* Encapsulating tunnel parameters. */
-    ovs_be64 metadata;          /* OpenFlow Metadata. */
+    struct flow_metadata md;
     struct in6_addr ipv6_src;   /* IPv6 source address. */
     struct in6_addr ipv6_dst;   /* IPv6 destination address. */
     struct in6_addr nd_target;  /* IPv6 neighbor discovery (ND) target. */
-    uint32_t skb_priority;      /* Packet priority for QoS. */
-    uint32_t regs[FLOW_N_REGS]; /* Registers. */
     ovs_be32 nw_src;            /* IPv4 source address. */
     ovs_be32 nw_dst;            /* IPv4 destination address. */
     ovs_be32 ipv6_label;        /* IPv6 flow label. */
-    uint32_t in_port;           /* Input port. OpenFlow port number
-                                   unless in DPIF code, in which case it
-                                   is the datapath port number. */
-    uint32_t skb_mark;          /* Packet mark. */
     ovs_be32 mpls_lse;          /* MPLS label stack entry. */
     uint16_t mpls_depth;        /* Depth of MPLS stack. */
     ovs_be16 vlan_tci;          /* If 802.1Q, TCI | VLAN_CFI; otherwise 0. */
@@ -105,31 +106,20 @@ struct flow {
     uint8_t arp_tha[6];         /* ARP/ND target hardware address. */
     uint8_t nw_ttl;             /* IP TTL/Hop Limit. */
     uint8_t nw_frag;            /* FLOW_FRAG_* flags. */
-    uint8_t zeros[6];
+    uint8_t zeros[2];
 };
 BUILD_ASSERT_DECL(sizeof(struct flow) % 4 == 0);
 
 #define FLOW_U32S (sizeof(struct flow) / 4)
 
 /* Remember to update FLOW_WC_SEQ when changing 'struct flow'. */
-BUILD_ASSERT_DECL(sizeof(struct flow) == sizeof(struct flow_tnl) + 160 &&
+BUILD_ASSERT_DECL(sizeof(struct flow) == sizeof(struct flow_metadata) + 104 &&
                   FLOW_WC_SEQ == 20);
-
-/* Represents the metadata fields of struct flow. */
-struct flow_metadata {
-    struct flow_tnl tunnel;          /* Encapsulating tunnel parameters. */
-    ovs_be64 metadata;               /* OpenFlow 1.1+ metadata field. */
-    uint32_t regs[FLOW_N_REGS];      /* Registers. */
-    uint32_t in_port;                /* OpenFlow port or zero. */
-    uint32_t skb_priority;           /* Packet priority for QoS. */
-    uint32_t skb_mark;               /* Packet mark. */
-};
 
 void flow_extract(struct ofpbuf *, uint32_t priority, uint32_t mark,
                   const struct flow_tnl *, uint16_t in_port, struct flow *);
 
 void flow_zero_wildcards(struct flow *, const struct flow_wildcards *);
-void flow_get_metadata(const struct flow *, struct flow_metadata *);
 
 char *flow_to_string(const struct flow *);
 void format_flags(struct ds *ds, const char *(*bit_to_string)(uint32_t),

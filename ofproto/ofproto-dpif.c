@@ -3533,7 +3533,7 @@ send_packet_in_miss(struct ofproto_dpif *ofproto, const struct ofpbuf *packet,
 
     pin.send_len = 0;           /* not used for flow table misses */
 
-    flow_get_metadata(flow, &pin.fmd);
+    pin.fmd = flow->md;
 
     connmgr_send_packet_in(ofproto->up.connmgr, &pin);
 }
@@ -3911,13 +3911,13 @@ ofproto_receive(const struct dpif_backer *backer, struct ofpbuf *packet,
     }
 
     if (odp_in_port) {
-        *odp_in_port = flow->in_port;
+        *odp_in_port = flow->md.in_port;
     }
 
     port = (tnl_port_should_receive(flow)
             ? ofport_dpif_cast(tnl_port_receive(flow))
-            : odp_port_to_ofport(backer, flow->in_port));
-    flow->in_port = port ? port->up.ofp_port : OFPP_NONE;
+            : odp_port_to_ofport(backer, flow->md.in_port));
+    flow->md.in_port = port ? port->up.ofp_port : OFPP_NONE;
     if (!port) {
         goto exit;
     }
@@ -4010,7 +4010,7 @@ handle_miss_upcalls(struct dpif_backer *backer, struct dpif_upcall *upcalls,
              * that future packets of the flow are inexpensively dropped
              * in the kernel. */
             VLOG_INFO_RL(&rl, "received packet on unassociated port %"PRIu32,
-                         flow.in_port);
+                         flow.md.in_port);
 
             drop_key = drop_key_lookup(backer, upcall->key, upcall->key_len);
             if (!drop_key) {
@@ -4030,8 +4030,8 @@ handle_miss_upcalls(struct dpif_backer *backer, struct dpif_upcall *upcalls,
         }
 
         ofproto->n_missed++;
-        flow_extract(upcall->packet, flow.skb_priority, flow.skb_mark,
-                     &flow.tunnel, flow.in_port, &miss->flow);
+        flow_extract(upcall->packet, flow.md.skb_priority, flow.md.skb_mark,
+                     &flow.md.tunnel, flow.md.in_port, &miss->flow);
 
         /* Add other packets to a to-do list. */
         hash = flow_hash(&miss->flow, 0);
@@ -4413,7 +4413,7 @@ update_stats(struct dpif_backer *backer)
         ofproto->total_subfacet_count += hmap_count(&ofproto->subfacets);
         ofproto->n_update_stats++;
 
-        ofport = get_ofp_port(ofproto, flow.in_port);
+        ofport = get_ofp_port(ofproto, flow.md.in_port);
         if (ofport && ofport->tnl_port) {
             netdev_vport_inc_rx(ofport->up.netdev, stats);
         }
@@ -4668,7 +4668,7 @@ execute_odp_actions(struct ofproto_dpif *ofproto, const struct flow *flow,
 
     ofpbuf_use_stack(&key, &keybuf, sizeof keybuf);
     odp_flow_key_from_flow(&key, flow,
-                           ofp_port_to_odp_port(ofproto, flow->in_port));
+                           ofp_port_to_odp_port(ofproto, flow->md.in_port));
 
     error = dpif_execute(ofproto->backer->dpif, key.data, key.size,
                          odp_actions, actions_len, packet);
@@ -5636,9 +5636,10 @@ rule_dpif_miss_rule(struct ofproto_dpif *ofproto, const struct flow *flow)
 {
     struct ofport_dpif *port;
 
-    port = get_ofp_port(ofproto, flow->in_port);
+    port = get_ofp_port(ofproto, flow->md.in_port);
     if (!port) {
-        VLOG_WARN_RL(&rl, "packet-in on unknown port %"PRIu16, flow->in_port);
+        VLOG_WARN_RL(&rl, "packet-in on unknown port %"PRIu16,
+                     flow->md.in_port);
         return ofproto->miss_rule;
     }
 
@@ -5902,7 +5903,7 @@ put_userspace_action(const struct ofproto_dpif *ofproto,
     uint32_t pid;
 
     pid = dpif_port_get_pid(ofproto->backer->dpif,
-                            ofp_port_to_odp_port(ofproto, flow->in_port));
+                            ofp_port_to_odp_port(ofproto, flow->md.in_port));
 
     return odp_put_userspace_action(pid, cookie, cookie_size, odp_actions);
 }
@@ -5977,7 +5978,7 @@ compose_sflow_action(const struct ofproto_dpif *ofproto,
     uint32_t probability;
     union user_action_cookie cookie;
 
-    if (!ofproto->sflow || flow->in_port == OFPP_NONE) {
+    if (!ofproto->sflow || flow->md.in_port == OFPP_NONE) {
         return 0;
     }
 
@@ -6016,7 +6017,7 @@ compose_ipfix_action(const struct ofproto_dpif *ofproto,
     uint32_t probability;
     union user_action_cookie cookie;
 
-    if (!ofproto->ipfix || flow->in_port == OFPP_NONE) {
+    if (!ofproto->ipfix || flow->md.in_port == OFPP_NONE) {
         return;
     }
 
@@ -6114,25 +6115,25 @@ compose_output_action__(struct action_xlate_ctx *ctx, uint16_t ofp_port,
         }
 
         ctx->ofproto = ofproto_dpif_cast(peer->up.ofproto);
-        ctx->flow.in_port = peer->up.ofp_port;
-        ctx->flow.metadata = htonll(0);
-        memset(&ctx->flow.tunnel, 0, sizeof ctx->flow.tunnel);
-        memset(ctx->flow.regs, 0, sizeof ctx->flow.regs);
+        ctx->flow.md.in_port = peer->up.ofp_port;
+        ctx->flow.md.metadata = htonll(0);
+        memset(&ctx->flow.md.tunnel, 0, sizeof ctx->flow.md.tunnel);
+        memset(ctx->flow.md.regs, 0, sizeof ctx->flow.md.regs);
 
-        in_port = get_ofp_port(ctx->ofproto, ctx->flow.in_port);
+        in_port = get_ofp_port(ctx->ofproto, ctx->flow.md.in_port);
         special = process_special(ctx->ofproto, &ctx->flow, in_port,
                                   ctx->packet);
         if (special) {
             ctx->slow |= special;
         } else if (!in_port || may_receive(in_port, ctx)) {
             if (!in_port || stp_forward_in_state(in_port->stp_state)) {
-                xlate_table_action(ctx, ctx->flow.in_port, 0, true);
+                xlate_table_action(ctx, ctx->flow.md.in_port, 0, true);
             } else {
                 /* Forwarding is disabled by STP.  Let OFPP_NORMAL and the
                  * learning action look at the packet, then drop it. */
                 struct flow old_base_flow = ctx->base_flow;
                 size_t old_size = ctx->odp_actions->size;
-                xlate_table_action(ctx, ctx->flow.in_port, 0, true);
+                xlate_table_action(ctx, ctx->flow.md.in_port, 0, true);
                 ctx->base_flow = old_base_flow;
                 ctx->odp_actions->size = old_size;
             }
@@ -6150,10 +6151,10 @@ compose_output_action__(struct action_xlate_ctx *ctx, uint16_t ofp_port,
     }
 
     flow_vlan_tci = ctx->flow.vlan_tci;
-    flow_skb_mark = ctx->flow.skb_mark;
+    flow_skb_mark = ctx->flow.md.skb_mark;
     flow_nw_tos = ctx->flow.nw_tos;
 
-    pdscp = get_priority(ofport, ctx->flow.skb_priority);
+    pdscp = get_priority(ofport, ctx->flow.md.skb_priority);
     if (pdscp) {
         ctx->flow.nw_tos &= ~IP_DSCP_MASK;
         ctx->flow.nw_tos |= pdscp->dscp;
@@ -6164,13 +6165,13 @@ compose_output_action__(struct action_xlate_ctx *ctx, uint16_t ofp_port,
           * the Logical (tunnel) Port are not visible for any further
           * matches, while explicit set actions on tunnel metadata are.
           */
-        struct flow_tnl flow_tnl = ctx->flow.tunnel;
+        struct flow_tnl flow_tnl = ctx->flow.md.tunnel;
         odp_port = tnl_port_send(ofport->tnl_port, &ctx->flow);
         if (odp_port == OVSP_NONE) {
             xlate_report(ctx, "Tunneling decided against output");
             goto out; /* restore flow_nw_tos */
         }
-        if (ctx->flow.tunnel.ip_dst == ctx->orig_tunnel_ip_dst) {
+        if (ctx->flow.md.tunnel.ip_dst == ctx->orig_tunnel_ip_dst) {
             xlate_report(ctx, "Not tunneling to our own address");
             goto out; /* restore flow_nw_tos */
         }
@@ -6180,7 +6181,7 @@ compose_output_action__(struct action_xlate_ctx *ctx, uint16_t ofp_port,
         out_port = odp_port;
         commit_odp_tunnel_action(&ctx->flow, &ctx->base_flow,
                                  ctx->odp_actions);
-        ctx->flow.tunnel = flow_tnl; /* Restore tunnel metadata */
+        ctx->flow.md.tunnel = flow_tnl; /* Restore tunnel metadata */
     } else {
         odp_port = ofport->odp_port;
         out_port = vsp_realdev_to_vlandev(ctx->ofproto, odp_port,
@@ -6188,7 +6189,7 @@ compose_output_action__(struct action_xlate_ctx *ctx, uint16_t ofp_port,
         if (out_port != odp_port) {
             ctx->flow.vlan_tci = htons(0);
         }
-        ctx->flow.skb_mark &= ~IPSEC_MARK;
+        ctx->flow.md.skb_mark &= ~IPSEC_MARK;
     }
     commit_odp_actions(&ctx->flow, &ctx->base_flow, ctx->odp_actions);
     nl_msg_put_u32(ctx->odp_actions, OVS_ACTION_ATTR_OUTPUT, out_port);
@@ -6199,7 +6200,7 @@ compose_output_action__(struct action_xlate_ctx *ctx, uint16_t ofp_port,
 
     /* Restore flow */
     ctx->flow.vlan_tci = flow_vlan_tci;
-    ctx->flow.skb_mark = flow_skb_mark;
+    ctx->flow.md.skb_mark = flow_skb_mark;
  out:
     ctx->flow.nw_tos = flow_nw_tos;
 }
@@ -6258,20 +6259,20 @@ xlate_table_action(struct action_xlate_ctx *ctx,
 {
     if (ctx->recurse < MAX_RESUBMIT_RECURSION) {
         struct rule_dpif *rule;
-        uint16_t old_in_port = ctx->flow.in_port;
+        uint16_t old_in_port = ctx->flow.md.in_port;
         uint8_t old_table_id = ctx->table_id;
 
         ctx->table_id = table_id;
 
         /* Look up a flow with 'in_port' as the input port. */
-        ctx->flow.in_port = in_port;
+        ctx->flow.md.in_port = in_port;
         rule = rule_dpif_lookup__(ctx->ofproto, &ctx->flow, table_id);
 
         tag_the_flow(ctx, rule);
 
         /* Restore the original input port.  Otherwise OFPP_NORMAL and
          * OFPP_IN_PORT will have surprising behavior. */
-        ctx->flow.in_port = old_in_port;
+        ctx->flow.md.in_port = old_in_port;
 
         rule = ctx_rule_hooks(ctx, rule, may_packet_in);
 
@@ -6304,7 +6305,7 @@ xlate_ofpact_resubmit(struct action_xlate_ctx *ctx,
 
     in_port = resubmit->in_port;
     if (in_port == OFPP_IN_PORT) {
-        in_port = ctx->flow.in_port;
+        in_port = ctx->flow.md.in_port;
     }
 
     table_id = resubmit->table_id;
@@ -6323,7 +6324,7 @@ flood_packets(struct action_xlate_ctx *ctx, bool all)
     HMAP_FOR_EACH (ofport, up.hmap_node, &ctx->ofproto->up.ports) {
         uint16_t ofp_port = ofport->up.ofp_port;
 
-        if (ofp_port == ctx->flow.in_port) {
+        if (ofp_port == ctx->flow.md.in_port) {
             continue;
         }
 
@@ -6402,7 +6403,7 @@ execute_controller_action(struct action_xlate_ctx *ctx, int len,
     pin.cookie = ctx->rule ? ctx->rule->up.flow_cookie : 0;
 
     pin.send_len = len;
-    flow_get_metadata(&ctx->flow, &pin.fmd);
+    pin.fmd = ctx->flow.md;
 
     connmgr_send_packet_in(ctx->ofproto->up.connmgr, &pin);
     ofpbuf_delete(packet);
@@ -6514,10 +6515,10 @@ xlate_output_action(struct action_xlate_ctx *ctx,
 
     switch (port) {
     case OFPP_IN_PORT:
-        compose_output_action(ctx, ctx->flow.in_port);
+        compose_output_action(ctx, ctx->flow.md.in_port);
         break;
     case OFPP_TABLE:
-        xlate_table_action(ctx, ctx->flow.in_port, 0, may_packet_in);
+        xlate_table_action(ctx, ctx->flow.md.in_port, 0, may_packet_in);
         break;
     case OFPP_NORMAL:
         xlate_normal(ctx);
@@ -6535,7 +6536,7 @@ xlate_output_action(struct action_xlate_ctx *ctx,
         break;
     case OFPP_LOCAL:
     default:
-        if (port != ctx->flow.in_port) {
+        if (port != ctx->flow.md.in_port) {
             compose_output_action(ctx, port);
         } else {
             xlate_report(ctx, "skipping output to input port");
@@ -6583,16 +6584,16 @@ xlate_enqueue_action(struct action_xlate_ctx *ctx,
 
     /* Check output port. */
     if (ofp_port == OFPP_IN_PORT) {
-        ofp_port = ctx->flow.in_port;
-    } else if (ofp_port == ctx->flow.in_port) {
+        ofp_port = ctx->flow.md.in_port;
+    } else if (ofp_port == ctx->flow.md.in_port) {
         return;
     }
 
     /* Add datapath actions. */
-    flow_priority = ctx->flow.skb_priority;
-    ctx->flow.skb_priority = priority;
+    flow_priority = ctx->flow.md.skb_priority;
+    ctx->flow.md.skb_priority = priority;
     compose_output_action(ctx, ofp_port);
-    ctx->flow.skb_priority = flow_priority;
+    ctx->flow.md.skb_priority = flow_priority;
 
     /* Update NetFlow output port. */
     if (ctx->nf_output_iface == NF_OUT_DROP) {
@@ -6609,7 +6610,7 @@ xlate_set_queue_action(struct action_xlate_ctx *ctx, uint32_t queue_id)
 
     if (!dpif_queue_to_priority(ctx->ofproto->backer->dpif,
                                 queue_id, &skb_priority)) {
-        ctx->flow.skb_priority = skb_priority;
+        ctx->flow.md.skb_priority = skb_priority;
     } else {
         /* Couldn't translate queue to a priority.  Nothing to do.  A warning
          * has already been logged. */
@@ -6738,7 +6739,7 @@ static bool
 tunnel_ecn_ok(struct action_xlate_ctx *ctx)
 {
     if (is_ip_any(&ctx->base_flow)
-        && (ctx->flow.tunnel.ip_tos & IP_ECN_MASK) == IP_ECN_CE) {
+        && (ctx->flow.md.tunnel.ip_tos & IP_ECN_MASK) == IP_ECN_CE) {
         if ((ctx->base_flow.nw_tos & IP_ECN_MASK) == IP_ECN_NOT_ECT) {
             VLOG_WARN_RL(&rl, "dropping tunnel packet marked ECN CE"
                          " but is not ECN capable");
@@ -6860,7 +6861,8 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
             break;
 
         case OFPACT_SET_TUNNEL:
-            ctx->flow.tunnel.tun_id = htonll(ofpact_get_SET_TUNNEL(a)->tun_id);
+            ctx->flow.md.tunnel.tun_id
+                = htonll(ofpact_get_SET_TUNNEL(a)->tun_id);
             break;
 
         case OFPACT_SET_QUEUE:
@@ -6868,7 +6870,7 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
             break;
 
         case OFPACT_POP_QUEUE:
-            ctx->flow.skb_priority = ctx->orig_skb_priority;
+            ctx->flow.md.skb_priority = ctx->orig_skb_priority;
             break;
 
         case OFPACT_REG_MOVE:
@@ -6958,8 +6960,8 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 
         case OFPACT_WRITE_METADATA:
             metadata = ofpact_get_WRITE_METADATA(a);
-            ctx->flow.metadata &= ~metadata->mask;
-            ctx->flow.metadata |= metadata->metadata & metadata->mask;
+            ctx->flow.md.metadata &= ~metadata->mask;
+            ctx->flow.md.metadata |= metadata->metadata & metadata->mask;
             break;
 
         case OFPACT_GOTO_TABLE: {
@@ -7037,8 +7039,8 @@ action_xlate_ctx_init(struct action_xlate_ctx *ctx,
     ctx->ofproto = ofproto;
     ctx->flow = *flow;
     ctx->base_flow = ctx->flow;
-    memset(&ctx->base_flow.tunnel, 0, sizeof ctx->base_flow.tunnel);
-    ctx->orig_tunnel_ip_dst = flow->tunnel.ip_dst;
+    memset(&ctx->base_flow.md.tunnel, 0, sizeof ctx->base_flow.md.tunnel);
+    ctx->orig_tunnel_ip_dst = flow->md.tunnel.ip_dst;
     ctx->rule = rule;
     ctx->packet = packet;
     ctx->may_learn = packet != NULL;
@@ -7083,7 +7085,7 @@ xlate_actions(struct action_xlate_ctx *ctx,
     ctx->mirrors = 0;
     ctx->recurse = 0;
     ctx->max_resubmit_trigger = false;
-    ctx->orig_skb_priority = ctx->flow.skb_priority;
+    ctx->orig_skb_priority = ctx->flow.md.skb_priority;
     ctx->table_id = 0;
     ctx->exit = false;
 
@@ -7118,7 +7120,7 @@ xlate_actions(struct action_xlate_ctx *ctx,
         }
     }
 
-    in_port = get_ofp_port(ctx->ofproto, ctx->flow.in_port);
+    in_port = get_ofp_port(ctx->ofproto, ctx->flow.md.in_port);
     special = process_special(ctx->ofproto, &ctx->flow, in_port, ctx->packet);
     if (special) {
         ctx->slow |= special;
@@ -7396,7 +7398,7 @@ add_mirror_actions(struct action_xlate_ctx *ctx, const struct flow *orig_flow)
     const struct nlattr *a;
     size_t left;
 
-    in_bundle = lookup_input_bundle(ctx->ofproto, orig_flow->in_port,
+    in_bundle = lookup_input_bundle(ctx->ofproto, orig_flow->md.in_port,
                                     ctx->packet != NULL, NULL);
     if (!in_bundle) {
         return;
@@ -7667,7 +7669,7 @@ xlate_normal(struct action_xlate_ctx *ctx)
 
     ctx->has_normal = true;
 
-    in_bundle = lookup_input_bundle(ctx->ofproto, ctx->flow.in_port,
+    in_bundle = lookup_input_bundle(ctx->ofproto, ctx->flow.md.in_port,
                                     ctx->packet != NULL, &in_port);
     if (!in_bundle) {
         xlate_report(ctx, "no input bundle, dropping");
@@ -7887,7 +7889,7 @@ packet_out(struct ofproto *ofproto_, struct ofpbuf *packet,
 
     ofpbuf_use_stack(&key, &keybuf, sizeof keybuf);
     odp_flow_key_from_flow(&key, flow,
-                           ofp_port_to_odp_port(ofproto, flow->in_port));
+                           ofp_port_to_odp_port(ofproto, flow->md.in_port));
 
     dpif_flow_stats_extract(flow, packet, time_msec(), &stats);
 
@@ -8083,7 +8085,7 @@ trace_format_regs(struct ds *result, int level, const char *title,
     ds_put_char_multiple(result, '\t', level);
     ds_put_format(result, "%s:", title);
     for (i = 0; i < FLOW_N_REGS; i++) {
-        ds_put_format(result, " reg%zu=0x%"PRIx32, i, trace->flow.regs[i]);
+        ds_put_format(result, " reg%zu=0x%"PRIx32, i, trace->flow.md.regs[i]);
     }
     ds_put_char(result, '\n');
 }
@@ -8226,7 +8228,7 @@ ofproto_unixctl_trace(struct unixctl_conn *conn, int argc, const char *argv[],
         free(s);
 
         flow_extract(packet, priority, mark, NULL, in_port, &flow);
-        flow.tunnel.tun_id = tun_id;
+        flow.md.tunnel.tun_id = tun_id;
         initial_vals.vlan_tci = flow.vlan_tci;
     } else {
         unixctl_command_reply_error(conn, "Bad command syntax");
@@ -8811,14 +8813,14 @@ vsp_adjust_flow(const struct ofproto_dpif *ofproto, struct flow *flow)
     uint16_t realdev;
     int vid;
 
-    realdev = vsp_vlandev_to_realdev(ofproto, flow->in_port, &vid);
+    realdev = vsp_vlandev_to_realdev(ofproto, flow->md.in_port, &vid);
     if (!realdev) {
         return false;
     }
 
     /* Cause the flow to be processed as if it came in on the real device with
      * the VLAN device's VLAN ID. */
-    flow->in_port = realdev;
+    flow->md.in_port = realdev;
     flow->vlan_tci = htons((vid & VLAN_VID_MASK) | VLAN_CFI);
     return true;
 }

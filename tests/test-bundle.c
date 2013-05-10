@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2012 Nicira, Inc.
+/* Copyright (c) 2011, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -138,7 +138,7 @@ main(int argc, char *argv[])
         random_bytes(&flows[i], sizeof flows[i]);
         memset(flows[i].zeros, 0, sizeof flows[i].zeros);
         flows[i].mpls_depth = 0;
-        flows[i].regs[0] = OFPP_NONE;
+        flows[i].md.regs[0] = OFPP_NONE;
     }
 
     /* Cycles through each possible liveness permutation for the given
@@ -188,9 +188,9 @@ main(int argc, char *argv[])
             struct flow *flow = &flows[j];
             uint16_t old_slave_id, ofp_port;
 
-            old_slave_id = flow->regs[0];
+            old_slave_id = flow->md.regs[0];
             ofp_port = bundle_execute(bundle, flow, slave_enabled_cb, &sg);
-            flow->regs[0] = ofp_port;
+            flow->md.regs[0] = ofp_port;
 
             if (ofp_port != OFPP_NONE) {
                 slave_lookup(&sg, ofp_port)->flow_count++;

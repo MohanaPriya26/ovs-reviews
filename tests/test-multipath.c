@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2012 Nicira, Inc.
+ * Copyright (c) 2010, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,11 +65,11 @@ main(int argc, char *argv[])
 
             mp.max_link = n - 1;
             multipath_execute(&mp, &flow);
-            old_link = flow.regs[0];
+            old_link = flow.md.regs[0];
 
             mp.max_link = n;
             multipath_execute(&mp, &flow);
-            new_link = flow.regs[0];
+            new_link = flow.md.regs[0];
 
             assert(old_link >= 0 && old_link < n);
             assert(new_link >= 0 && new_link < n + 1);

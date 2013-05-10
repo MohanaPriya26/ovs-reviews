@@ -44,7 +44,7 @@ uint32_t tnl_port_send(const struct tnl_port *, struct flow *);
 static inline bool
 tnl_port_should_receive(const struct flow *flow)
 {
-    return flow->tunnel.ip_dst != 0;
+    return flow->md.tunnel.ip_dst != 0;
 }
 
 #endif /* tunnel.h */

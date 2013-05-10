@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012 Nicira, Inc.
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,22 +41,22 @@
 
 /* Fields in a rule. */
 #define CLS_FIELDS                                                  \
-    /*        struct flow    all-caps */  \
-    /*        member name    name     */  \
-    /*        -----------    -------- */  \
-    CLS_FIELD(tunnel.tun_id, TUN_ID)      \
-    CLS_FIELD(metadata,      METADATA)    \
-    CLS_FIELD(nw_src,        NW_SRC)      \
-    CLS_FIELD(nw_dst,        NW_DST)      \
-    CLS_FIELD(in_port,       IN_PORT)     \
-    CLS_FIELD(vlan_tci,      VLAN_TCI)    \
-    CLS_FIELD(dl_type,       DL_TYPE)     \
-    CLS_FIELD(tp_src,        TP_SRC)      \
-    CLS_FIELD(tp_dst,        TP_DST)      \
-    CLS_FIELD(dl_src,        DL_SRC)      \
-    CLS_FIELD(dl_dst,        DL_DST)      \
-    CLS_FIELD(nw_proto,      NW_PROTO)    \
-    CLS_FIELD(nw_tos,        NW_DSCP)
+    /*        struct flow       all-caps */  \
+    /*        member name       name     */  \
+    /*        -----------       -------- */  \
+    CLS_FIELD(md.tunnel.tun_id, TUN_ID)      \
+    CLS_FIELD(md.metadata,      METADATA)    \
+    CLS_FIELD(nw_src,           NW_SRC)      \
+    CLS_FIELD(nw_dst,           NW_DST)      \
+    CLS_FIELD(md.in_port,       IN_PORT)     \
+    CLS_FIELD(vlan_tci,         VLAN_TCI)    \
+    CLS_FIELD(dl_type,          DL_TYPE)     \
+    CLS_FIELD(tp_src,           TP_SRC)      \
+    CLS_FIELD(tp_dst,           TP_DST)      \
+    CLS_FIELD(dl_src,           DL_SRC)      \
+    CLS_FIELD(dl_dst,           DL_DST)      \
+    CLS_FIELD(nw_proto,         NW_PROTO)    \
+    CLS_FIELD(nw_tos,           NW_DSCP)
 
 /* Field indexes.
  *
@@ -225,11 +225,11 @@ match(const struct cls_rule *wild_, const struct flow *fixed)
             eq = !((fixed->vlan_tci ^ wild.flow.vlan_tci)
                    & wild.wc.masks.vlan_tci);
         } else if (f_idx == CLS_F_IDX_TUN_ID) {
-            eq = !((fixed->tunnel.tun_id ^ wild.flow.tunnel.tun_id)
-                   & wild.wc.masks.tunnel.tun_id);
+            eq = !((fixed->md.tunnel.tun_id ^ wild.flow.md.tunnel.tun_id)
+                   & wild.wc.masks.md.tunnel.tun_id);
         } else if (f_idx == CLS_F_IDX_METADATA) {
-            eq = !((fixed->metadata ^ wild.flow.metadata)
-                   & wild.wc.masks.metadata);
+            eq = !((fixed->md.metadata ^ wild.flow.md.metadata)
+                   & wild.wc.masks.md.metadata);
         } else if (f_idx == CLS_F_IDX_NW_DSCP) {
             eq = !((fixed->nw_tos ^ wild.flow.nw_tos) &
                    (wild.wc.masks.nw_tos & IP_DSCP_MASK));
@@ -240,8 +240,8 @@ match(const struct cls_rule *wild_, const struct flow *fixed)
             eq = !((fixed->dl_type ^ wild.flow.dl_type)
                    & wild.wc.masks.dl_type);
         } else if (f_idx == CLS_F_IDX_IN_PORT) {
-            eq = !((fixed->in_port ^ wild.flow.in_port)
-                   & wild.wc.masks.in_port);
+            eq = !((fixed->md.in_port ^ wild.flow.md.in_port)
+                   & wild.wc.masks.md.in_port);
         } else {
             NOT_REACHED();
         }
@@ -408,9 +408,9 @@ compare_classifiers(struct classifier *cls, struct tcls *tcls)
         memset(&flow, 0, sizeof flow);
         flow.nw_src = nw_src_values[get_value(&x, N_NW_SRC_VALUES)];
         flow.nw_dst = nw_dst_values[get_value(&x, N_NW_DST_VALUES)];
-        flow.tunnel.tun_id = tun_id_values[get_value(&x, N_TUN_ID_VALUES)];
-        flow.metadata = metadata_values[get_value(&x, N_METADATA_VALUES)];
-        flow.in_port = in_port_values[get_value(&x, N_IN_PORT_VALUES)];
+        flow.md.tunnel.tun_id = tun_id_values[get_value(&x, N_TUN_ID_VALUES)];
+        flow.md.metadata = metadata_values[get_value(&x, N_METADATA_VALUES)];
+        flow.md.in_port = in_port_values[get_value(&x, N_IN_PORT_VALUES)];
         flow.vlan_tci = vlan_tci_values[get_value(&x, N_VLAN_TCI_VALUES)];
         flow.dl_type = dl_type_values[get_value(&x, N_DL_TYPE_VALUES)];
         flow.tp_src = tp_src_values[get_value(&x, N_TP_SRC_VALUES)];
@@ -536,9 +536,9 @@ make_rule(int wc_fields, unsigned int priority, int value_pat)
         } else if (f_idx == CLS_F_IDX_VLAN_TCI) {
             match.wc.masks.vlan_tci = htons(UINT16_MAX);
         } else if (f_idx == CLS_F_IDX_TUN_ID) {
-            match.wc.masks.tunnel.tun_id = htonll(UINT64_MAX);
+            match.wc.masks.md.tunnel.tun_id = htonll(UINT64_MAX);
         } else if (f_idx == CLS_F_IDX_METADATA) {
-            match.wc.masks.metadata = htonll(UINT64_MAX);
+            match.wc.masks.md.metadata = htonll(UINT64_MAX);
         } else if (f_idx == CLS_F_IDX_NW_DSCP) {
             match.wc.masks.nw_tos |= IP_DSCP_MASK;
         } else if (f_idx == CLS_F_IDX_NW_PROTO) {
@@ -546,7 +546,7 @@ make_rule(int wc_fields, unsigned int priority, int value_pat)
         } else if (f_idx == CLS_F_IDX_DL_TYPE) {
             match.wc.masks.dl_type = htons(UINT16_MAX);
         } else if (f_idx == CLS_F_IDX_IN_PORT) {
-            match.wc.masks.in_port = UINT16_MAX;
+            match.wc.masks.md.in_port = UINT16_MAX;
         } else {
             NOT_REACHED();
         }

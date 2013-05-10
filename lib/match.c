@@ -56,35 +56,35 @@ match_wc_init(struct match *match, const struct flow *flow)
         memset(&wc->masks.nw_proto, 0xff, sizeof wc->masks.nw_proto);
     }
 
-    if (flow->skb_priority) {
-        memset(&wc->masks.skb_priority, 0xff, sizeof wc->masks.skb_priority);
+    if (flow->md.skb_priority) {
+        wc->masks.md.skb_priority = UINT32_MAX;
     }
 
-    if (flow->skb_mark) {
-        memset(&wc->masks.skb_mark, 0xff, sizeof wc->masks.skb_mark);
+    if (flow->md.skb_mark) {
+        wc->masks.md.skb_mark = UINT32_MAX;
     }
 
     for (i = 0; i < FLOW_N_REGS; i++) {
-        if (flow->regs[i]) {
-            memset(&wc->masks.regs[i], 0xff, sizeof wc->masks.regs[i]);
+        if (flow->md.regs[i]) {
+            wc->masks.md.regs[i] = UINT32_MAX;
         }
     }
 
-    if (flow->tunnel.ip_dst) {
-        if (flow->tunnel.flags & FLOW_TNL_F_KEY) {
-            memset(&wc->masks.tunnel.tun_id, 0xff, sizeof wc->masks.tunnel.tun_id);
+    if (flow->md.tunnel.ip_dst) {
+        if (flow->md.tunnel.flags & FLOW_TNL_F_KEY) {
+            wc->masks.md.tunnel.tun_id = htonll(UINT64_MAX);
         }
-        memset(&wc->masks.tunnel.ip_src, 0xff, sizeof wc->masks.tunnel.ip_src);
-        memset(&wc->masks.tunnel.ip_dst, 0xff, sizeof wc->masks.tunnel.ip_dst);
-        memset(&wc->masks.tunnel.flags, 0xff, sizeof wc->masks.tunnel.flags);
-        memset(&wc->masks.tunnel.ip_tos, 0xff, sizeof wc->masks.tunnel.ip_tos);
-        memset(&wc->masks.tunnel.ip_ttl, 0xff, sizeof wc->masks.tunnel.ip_ttl);
-    } else if (flow->tunnel.tun_id) {
-        memset(&wc->masks.tunnel.tun_id, 0xff, sizeof wc->masks.tunnel.tun_id);
+        wc->masks.md.tunnel.ip_src = htonll(UINT32_MAX);
+        wc->masks.md.tunnel.ip_dst = htonll(UINT32_MAX);
+        wc->masks.md.tunnel.flags = UINT16_MAX;
+        wc->masks.md.tunnel.ip_tos = UINT8_MAX;
+        wc->masks.md.tunnel.ip_ttl = UINT8_MAX;
+    } else if (flow->md.tunnel.tun_id) {
+        wc->masks.md.tunnel.tun_id = htonll(UINT64_MAX);
     }
 
-    memset(&wc->masks.metadata, 0xff, sizeof wc->masks.metadata);
-    memset(&wc->masks.in_port, 0xff, sizeof wc->masks.in_port);
+    wc->masks.md.metadata = htonll(UINT64_MAX);
+    wc->masks.md.in_port = htonl(UINT32_MAX);
     memset(&wc->masks.vlan_tci, 0xff, sizeof wc->masks.vlan_tci);
     memset(&wc->masks.dl_src, 0xff, sizeof wc->masks.dl_src);
     memset(&wc->masks.dl_dst, 0xff, sizeof wc->masks.dl_dst);
@@ -136,8 +136,8 @@ void
 match_init_exact(struct match *match, const struct flow *flow)
 {
     match->flow = *flow;
-    match->flow.skb_priority = 0;
-    match->flow.skb_mark = 0;
+    match->flow.md.skb_priority = 0;
+    match->flow.md.skb_mark = 0;
     flow_wildcards_init_exact(&match->wc);
 }
 
@@ -175,7 +175,7 @@ match_set_reg_masked(struct match *match, unsigned int reg_idx,
 {
     ovs_assert(reg_idx < FLOW_N_REGS);
     flow_wildcards_set_reg_mask(&match->wc, reg_idx, mask);
-    match->flow.regs[reg_idx] = value & mask;
+    match->flow.md.regs[reg_idx] = value & mask;
 }
 
 void
@@ -188,8 +188,8 @@ void
 match_set_metadata_masked(struct match *match,
                           ovs_be64 metadata, ovs_be64 mask)
 {
-    match->wc.masks.metadata = mask;
-    match->flow.metadata = metadata & mask;
+    match->wc.masks.md.metadata = mask;
+    match->flow.md.metadata = metadata & mask;
 }
 
 void
@@ -201,8 +201,8 @@ match_set_tun_id(struct match *match, ovs_be64 tun_id)
 void
 match_set_tun_id_masked(struct match *match, ovs_be64 tun_id, ovs_be64 mask)
 {
-    match->wc.masks.tunnel.tun_id = mask;
-    match->flow.tunnel.tun_id = tun_id & mask;
+    match->wc.masks.md.tunnel.tun_id = mask;
+    match->flow.md.tunnel.tun_id = tun_id & mask;
 }
 
 void
@@ -214,8 +214,8 @@ match_set_tun_src(struct match *match, ovs_be32 src)
 void
 match_set_tun_src_masked(struct match *match, ovs_be32 src, ovs_be32 mask)
 {
-    match->wc.masks.tunnel.ip_src = mask;
-    match->flow.tunnel.ip_src = src & mask;
+    match->wc.masks.md.tunnel.ip_src = mask;
+    match->flow.md.tunnel.ip_src = src & mask;
 }
 
 void
@@ -227,8 +227,8 @@ match_set_tun_dst(struct match *match, ovs_be32 dst)
 void
 match_set_tun_dst_masked(struct match *match, ovs_be32 dst, ovs_be32 mask)
 {
-    match->wc.masks.tunnel.ip_dst = mask;
-    match->flow.tunnel.ip_dst = dst & mask;
+    match->wc.masks.md.tunnel.ip_dst = mask;
+    match->flow.md.tunnel.ip_dst = dst & mask;
 }
 
 void
@@ -240,8 +240,8 @@ match_set_tun_ttl(struct match *match, uint8_t ttl)
 void
 match_set_tun_ttl_masked(struct match *match, uint8_t ttl, uint8_t mask)
 {
-    match->wc.masks.tunnel.ip_ttl = mask;
-    match->flow.tunnel.ip_ttl = ttl & mask;
+    match->wc.masks.md.tunnel.ip_ttl = mask;
+    match->flow.md.tunnel.ip_ttl = ttl & mask;
 }
 
 void
@@ -253,8 +253,8 @@ match_set_tun_tos(struct match *match, uint8_t tos)
 void
 match_set_tun_tos_masked(struct match *match, uint8_t tos, uint8_t mask)
 {
-    match->wc.masks.tunnel.ip_tos = mask;
-    match->flow.tunnel.ip_tos = tos & mask;
+    match->wc.masks.md.tunnel.ip_tos = mask;
+    match->flow.md.tunnel.ip_tos = tos & mask;
 }
 
 void
@@ -266,29 +266,29 @@ match_set_tun_flags(struct match *match, uint16_t flags)
 void
 match_set_tun_flags_masked(struct match *match, uint16_t flags, uint16_t mask)
 {
-    match->wc.masks.tunnel.flags = mask;
-    match->flow.tunnel.flags = flags & mask;
+    match->wc.masks.md.tunnel.flags = mask;
+    match->flow.md.tunnel.flags = flags & mask;
 }
 
 void
 match_set_in_port(struct match *match, uint16_t ofp_port)
 {
-    match->wc.masks.in_port = UINT16_MAX;
-    match->flow.in_port = ofp_port;
+    match->wc.masks.md.in_port = UINT16_MAX;
+    match->flow.md.in_port = ofp_port;
 }
 
 void
 match_set_skb_priority(struct match *match, uint32_t skb_priority)
 {
-    match->wc.masks.skb_priority = UINT32_MAX;
-    match->flow.skb_priority = skb_priority;
+    match->wc.masks.md.skb_priority = UINT32_MAX;
+    match->flow.md.skb_priority = skb_priority;
 }
 
 void
 match_set_skb_mark(struct match *match, uint32_t skb_mark)
 {
-    match->wc.masks.skb_mark = UINT32_MAX;
-    match->flow.skb_mark = skb_mark;
+    match->wc.masks.md.skb_mark = UINT32_MAX;
+    match->flow.md.skb_mark = skb_mark;
 }
 
 void
@@ -787,9 +787,9 @@ static void
 format_flow_tunnel(struct ds *s, const struct match *match)
 {
     const struct flow_wildcards *wc = &match->wc;
-    const struct flow_tnl *tnl = &match->flow.tunnel;
+    const struct flow_tnl *tnl = &match->flow.md.tunnel;
 
-    switch (wc->masks.tunnel.tun_id) {
+    switch (wc->masks.md.tunnel.tun_id) {
     case 0:
         break;
     case CONSTANT_HTONLL(UINT64_MAX):
@@ -798,19 +798,19 @@ format_flow_tunnel(struct ds *s, const struct match *match)
     default:
         ds_put_format(s, "tun_id=%#"PRIx64"/%#"PRIx64",",
                       ntohll(tnl->tun_id),
-                      ntohll(wc->masks.tunnel.tun_id));
+                      ntohll(wc->masks.md.tunnel.tun_id));
         break;
     }
-    format_ip_netmask(s, "tun_src", tnl->ip_src, wc->masks.tunnel.ip_src);
-    format_ip_netmask(s, "tun_dst", tnl->ip_dst, wc->masks.tunnel.ip_dst);
+    format_ip_netmask(s, "tun_src", tnl->ip_src, wc->masks.md.tunnel.ip_src);
+    format_ip_netmask(s, "tun_dst", tnl->ip_dst, wc->masks.md.tunnel.ip_dst);
 
-    if (wc->masks.tunnel.ip_tos) {
+    if (wc->masks.md.tunnel.ip_tos) {
         ds_put_format(s, "tun_tos=%"PRIx8",", tnl->ip_tos);
     }
-    if (wc->masks.tunnel.ip_ttl) {
+    if (wc->masks.md.tunnel.ip_ttl) {
         ds_put_format(s, "tun_ttl=%"PRIu8",", tnl->ip_ttl);
     }
-    if (wc->masks.tunnel.flags) {
+    if (wc->masks.md.tunnel.flags) {
         format_flags(s, flow_tun_flag_to_string, tnl->flags, '|');
         ds_put_char(s, ',');
     }
@@ -835,12 +835,12 @@ match_format(const struct match *match, struct ds *s, unsigned int priority)
         ds_put_format(s, "priority=%u,", priority);
     }
 
-    if (wc->masks.skb_mark) {
-        ds_put_format(s, "skb_mark=%#"PRIx32",", f->skb_mark);
+    if (wc->masks.md.skb_mark) {
+        ds_put_format(s, "skb_mark=%#"PRIx32",", f->md.skb_mark);
     }
 
-    if (wc->masks.skb_priority) {
-        ds_put_format(s, "skb_priority=%#"PRIx32",", f->skb_priority);
+    if (wc->masks.md.skb_priority) {
+        ds_put_format(s, "skb_priority=%#"PRIx32",", f->md.skb_priority);
     }
 
     if (wc->masks.dl_type) {
@@ -890,35 +890,35 @@ match_format(const struct match *match, struct ds *s, unsigned int priority)
         }
     }
     for (i = 0; i < FLOW_N_REGS; i++) {
-        switch (wc->masks.regs[i]) {
+        switch (wc->masks.md.regs[i]) {
         case 0:
             break;
         case UINT32_MAX:
-            ds_put_format(s, "reg%d=0x%"PRIx32",", i, f->regs[i]);
+            ds_put_format(s, "reg%d=0x%"PRIx32",", i, f->md.regs[i]);
             break;
         default:
             ds_put_format(s, "reg%d=0x%"PRIx32"/0x%"PRIx32",",
-                          i, f->regs[i], wc->masks.regs[i]);
+                          i, f->md.regs[i], wc->masks.md.regs[i]);
             break;
         }
     }
 
     format_flow_tunnel(s, match);
 
-    switch (wc->masks.metadata) {
+    switch (wc->masks.md.metadata) {
     case 0:
         break;
     case CONSTANT_HTONLL(UINT64_MAX):
-        ds_put_format(s, "metadata=%#"PRIx64",", ntohll(f->metadata));
+        ds_put_format(s, "metadata=%#"PRIx64",", ntohll(f->md.metadata));
         break;
     default:
         ds_put_format(s, "metadata=%#"PRIx64"/%#"PRIx64",",
-                      ntohll(f->metadata), ntohll(wc->masks.metadata));
+                      ntohll(f->md.metadata), ntohll(wc->masks.md.metadata));
         break;
     }
-    if (wc->masks.in_port) {
+    if (wc->masks.md.in_port) {
         ds_put_cstr(s, "in_port=");
-        ofputil_format_port(f->in_port, s);
+        ofputil_format_port(f->md.in_port, s);
         ds_put_char(s, ',');
     }
     if (wc->masks.vlan_tci) {

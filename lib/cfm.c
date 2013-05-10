@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2011, 2012 Nicira, Inc.
+ * Copyright (c) 2010, 2011, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -535,7 +535,7 @@ cfm_should_process_flow(const struct cfm *cfm, const struct flow *flow)
 {
     return (ntohs(flow->dl_type) == ETH_TYPE_CFM
             && eth_addr_equals(flow->dl_dst, cfm_ccm_addr(cfm))
-            && (!cfm->check_tnl_key || flow->tunnel.tun_id == htonll(0)));
+            && (!cfm->check_tnl_key || flow->md.tunnel.tun_id == htonll(0)));
 }
 
 /* Updates internal statistics relevant to packet 'p'.  Should be called on

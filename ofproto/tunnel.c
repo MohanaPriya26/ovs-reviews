@@ -177,11 +177,11 @@ tnl_port_receive(const struct flow *flow)
     struct tnl_match match;
 
     memset(&match, 0, sizeof match);
-    match.odp_port = flow->in_port;
-    match.ip_src = flow->tunnel.ip_dst;
-    match.ip_dst = flow->tunnel.ip_src;
-    match.in_key = flow->tunnel.tun_id;
-    match.skb_mark = flow->skb_mark;
+    match.odp_port = flow->md.in_port;
+    match.ip_src = flow->md.tunnel.ip_dst;
+    match.ip_dst = flow->md.tunnel.ip_src;
+    match.in_key = flow->md.tunnel.tun_id;
+    match.skb_mark = flow->md.skb_mark;
 
     tnl_port = tnl_find(&match);
     if (!tnl_port) {
@@ -234,36 +234,36 @@ tnl_port_send(const struct tnl_port *tnl_port, struct flow *flow)
     }
 
     if (!cfg->ip_src_flow) {
-        flow->tunnel.ip_src = tnl_port->match.ip_src;
+        flow->md.tunnel.ip_src = tnl_port->match.ip_src;
     }
     if (!cfg->ip_dst_flow) {
-        flow->tunnel.ip_dst = tnl_port->match.ip_dst;
+        flow->md.tunnel.ip_dst = tnl_port->match.ip_dst;
     }
-    flow->skb_mark = tnl_port->match.skb_mark;
+    flow->md.skb_mark = tnl_port->match.skb_mark;
 
     if (!cfg->out_key_flow) {
-        flow->tunnel.tun_id = cfg->out_key;
+        flow->md.tunnel.tun_id = cfg->out_key;
     }
 
     if (cfg->ttl_inherit && is_ip_any(flow)) {
-        flow->tunnel.ip_ttl = flow->nw_ttl;
+        flow->md.tunnel.ip_ttl = flow->nw_ttl;
     } else {
-        flow->tunnel.ip_ttl = cfg->ttl;
+        flow->md.tunnel.ip_ttl = cfg->ttl;
     }
 
     if (cfg->tos_inherit && is_ip_any(flow)) {
-        flow->tunnel.ip_tos = flow->nw_tos & IP_DSCP_MASK;
+        flow->md.tunnel.ip_tos = flow->nw_tos & IP_DSCP_MASK;
     } else {
-        flow->tunnel.ip_tos = cfg->tos;
+        flow->md.tunnel.ip_tos = cfg->tos;
     }
 
     if ((flow->nw_tos & IP_ECN_MASK) == IP_ECN_CE) {
-        flow->tunnel.ip_tos |= IP_ECN_ECT_0;
+        flow->md.tunnel.ip_tos |= IP_ECN_ECT_0;
     } else {
-        flow->tunnel.ip_tos |= flow->nw_tos & IP_ECN_MASK;
+        flow->md.tunnel.ip_tos |= flow->nw_tos & IP_ECN_MASK;
     }
 
-    flow->tunnel.flags = (cfg->dont_fragment ? FLOW_TNL_F_DONT_FRAGMENT : 0)
+    flow->md.tunnel.flags = (cfg->dont_fragment ? FLOW_TNL_F_DONT_FRAGMENT : 0)
         | (cfg->csum ? FLOW_TNL_F_CSUM : 0)
         | (cfg->out_key_present ? FLOW_TNL_F_KEY : 0);
 

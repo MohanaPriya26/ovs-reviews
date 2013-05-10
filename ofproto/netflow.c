@@ -85,10 +85,10 @@ gen_netflow_rec(struct netflow *nf, struct netflow_flow *nf_flow,
     nf_rec->nexthop = htonl(0);
     if (nf->add_id_to_iface) {
         uint16_t iface = (nf->engine_id & 0x7f) << 9;
-        nf_rec->input = htons(iface | (expired->flow.in_port & 0x1ff));
+        nf_rec->input = htons(iface | (expired->flow.md.in_port & 0x1ff));
         nf_rec->output = htons(iface | (nf_flow->output_iface & 0x1ff));
     } else {
-        nf_rec->input = htons(expired->flow.in_port);
+        nf_rec->input = htons(expired->flow.md.in_port);
         nf_rec->output = htons(nf_flow->output_iface);
     }
     nf_rec->packet_count = htonl(packet_count);

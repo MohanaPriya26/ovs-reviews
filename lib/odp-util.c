@@ -1552,16 +1552,16 @@ odp_flow_key_from_flow(struct ofpbuf *buf, const struct flow *flow,
     struct ovs_key_ethernet *eth_key;
     size_t encap;
 
-    if (flow->skb_priority) {
-        nl_msg_put_u32(buf, OVS_KEY_ATTR_PRIORITY, flow->skb_priority);
+    if (flow->md.skb_priority) {
+        nl_msg_put_u32(buf, OVS_KEY_ATTR_PRIORITY, flow->md.skb_priority);
     }
 
-    if (flow->tunnel.ip_dst) {
-        tun_key_to_attr(buf, &flow->tunnel);
+    if (flow->md.tunnel.ip_dst) {
+        tun_key_to_attr(buf, &flow->md.tunnel);
     }
 
-    if (flow->skb_mark) {
-        nl_msg_put_u32(buf, OVS_KEY_ATTR_SKB_MARK, flow->skb_mark);
+    if (flow->md.skb_mark) {
+        nl_msg_put_u32(buf, OVS_KEY_ATTR_SKB_MARK, flow->md.skb_mark);
     }
 
     if (odp_in_port != OVSP_NONE) {
@@ -2066,19 +2066,19 @@ odp_flow_key_to_flow(const struct nlattr *key, size_t key_len,
 
     /* Metadata. */
     if (present_attrs & (UINT64_C(1) << OVS_KEY_ATTR_PRIORITY)) {
-        flow->skb_priority = nl_attr_get_u32(attrs[OVS_KEY_ATTR_PRIORITY]);
+        flow->md.skb_priority = nl_attr_get_u32(attrs[OVS_KEY_ATTR_PRIORITY]);
         expected_attrs |= UINT64_C(1) << OVS_KEY_ATTR_PRIORITY;
     }
 
     if (present_attrs & (UINT64_C(1) << OVS_KEY_ATTR_SKB_MARK)) {
-        flow->skb_mark = nl_attr_get_u32(attrs[OVS_KEY_ATTR_SKB_MARK]);
+        flow->md.skb_mark = nl_attr_get_u32(attrs[OVS_KEY_ATTR_SKB_MARK]);
         expected_attrs |= UINT64_C(1) << OVS_KEY_ATTR_SKB_MARK;
     }
 
     if (present_attrs & (UINT64_C(1) << OVS_KEY_ATTR_TUNNEL)) {
         enum odp_key_fitness res;
 
-        res = tun_key_from_attr(attrs[OVS_KEY_ATTR_TUNNEL], &flow->tunnel);
+        res = tun_key_from_attr(attrs[OVS_KEY_ATTR_TUNNEL], &flow->md.tunnel);
         if (res == ODP_FIT_ERROR) {
             return ODP_FIT_ERROR;
         } else if (res == ODP_FIT_PERFECT) {
@@ -2087,10 +2087,10 @@ odp_flow_key_to_flow(const struct nlattr *key, size_t key_len,
     }
 
     if (present_attrs & (UINT64_C(1) << OVS_KEY_ATTR_IN_PORT)) {
-        flow->in_port = nl_attr_get_u32(attrs[OVS_KEY_ATTR_IN_PORT]);
+        flow->md.in_port = nl_attr_get_u32(attrs[OVS_KEY_ATTR_IN_PORT]);
         expected_attrs |= UINT64_C(1) << OVS_KEY_ATTR_IN_PORT;
     } else {
-        flow->in_port = OVSP_NONE;
+        flow->md.in_port = OVSP_NONE;
     }
 
     /* Ethernet header. */
@@ -2200,12 +2200,13 @@ commit_odp_tunnel_action(const struct flow *flow, struct flow *base,
                          struct ofpbuf *odp_actions)
 {
     /* A valid IPV4_TUNNEL must have non-zero ip_dst. */
-    if (flow->tunnel.ip_dst) {
-        if (!memcmp(&base->tunnel, &flow->tunnel, sizeof base->tunnel)) {
+    if (flow->md.tunnel.ip_dst) {
+        if (!memcmp(&base->md.tunnel, &flow->md.tunnel,
+                    sizeof base->md.tunnel)) {
             return;
         }
-        memcpy(&base->tunnel, &flow->tunnel, sizeof base->tunnel);
-        odp_put_tunnel_action(&base->tunnel, odp_actions);
+        base->md.tunnel = flow->md.tunnel;
+        odp_put_tunnel_action(&base->md.tunnel, odp_actions);
     }
 }
 
@@ -2405,26 +2406,27 @@ static void
 commit_set_priority_action(const struct flow *flow, struct flow *base,
                            struct ofpbuf *odp_actions)
 {
-    if (base->skb_priority == flow->skb_priority) {
+    if (base->md.skb_priority == flow->md.skb_priority) {
         return;
     }
-    base->skb_priority = flow->skb_priority;
+    base->md.skb_priority = flow->md.skb_priority;
 
     commit_set_action(odp_actions, OVS_KEY_ATTR_PRIORITY,
-                      &base->skb_priority, sizeof(base->skb_priority));
+                      &base->md.skb_priority, sizeof(base->md.skb_priority));
 }
 
 static void
 commit_set_skb_mark_action(const struct flow *flow, struct flow *base,
                            struct ofpbuf *odp_actions)
 {
-    if (base->skb_mark == flow->skb_mark) {
+    if (base->md.skb_mark == flow->md.skb_mark) {
         return;
     }
-    base->skb_mark = flow->skb_mark;
+    base->md.skb_mark = flow->md.skb_mark;
 
-    odp_put_skb_mark_action(base->skb_mark, odp_actions);
+    odp_put_skb_mark_action(base->md.skb_mark, odp_actions);
 }
+
 /* If any of the flow key data that ODP actions can modify are different in
  * 'base' and 'flow', appends ODP actions to 'odp_actions' that change the flow
  * key from 'base' into 'flow', and then changes 'base' the same way.  Does not

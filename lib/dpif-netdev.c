@@ -701,9 +701,9 @@ dpif_netdev_flow_from_nlattrs(const struct nlattr *key, uint32_t key_len,
         return EINVAL;
     }
 
-    if (flow->in_port < OFPP_MAX
-        ? flow->in_port >= MAX_PORTS
-        : flow->in_port != OFPP_LOCAL && flow->in_port != OFPP_NONE) {
+    if (flow->md.in_port < OFPP_MAX
+        ? flow->md.in_port >= MAX_PORTS
+        : flow->md.in_port != OFPP_LOCAL && flow->md.in_port != OFPP_NONE) {
         return EINVAL;
     }
 
@@ -891,7 +891,7 @@ dpif_netdev_flow_dump_next(const struct dpif *dpif, void *state_,
         struct ofpbuf buf;
 
         ofpbuf_use_stack(&buf, &state->keybuf, sizeof state->keybuf);
-        odp_flow_key_from_flow(&buf, &flow->key, flow->key.in_port);
+        odp_flow_key_from_flow(&buf, &flow->key, flow->key.md.in_port);
 
         *key = buf.data;
         *key_len = buf.size;
@@ -1135,7 +1135,7 @@ dp_netdev_output_userspace(struct dp_netdev *dp, const struct ofpbuf *packet,
         ofpbuf_init(buf, buf_size);
 
         /* Put ODP flow. */
-        odp_flow_key_from_flow(buf, flow, flow->in_port);
+        odp_flow_key_from_flow(buf, flow, flow->md.in_port);
         upcall->key = buf->data;
         upcall->key_len = buf->size;
 

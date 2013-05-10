@@ -90,7 +90,7 @@ ofputil_wildcard_from_ofpfw10(uint32_t ofpfw, struct flow_wildcards *wc)
     flow_wildcards_init_catchall(wc);
 
     if (!(ofpfw & OFPFW10_IN_PORT)) {
-        wc->masks.in_port = UINT16_MAX;
+        wc->masks.md.in_port = UINT16_MAX;
     }
 
     if (!(ofpfw & OFPFW10_NW_TOS)) {
@@ -145,7 +145,7 @@ ofputil_match_from_ofp10_match(const struct ofp10_match *ofmatch,
     /* Initialize most of match->flow. */
     match->flow.nw_src = ofmatch->nw_src;
     match->flow.nw_dst = ofmatch->nw_dst;
-    match->flow.in_port = ntohs(ofmatch->in_port);
+    match->flow.md.in_port = ntohs(ofmatch->in_port);
     match->flow.dl_type = ofputil_dl_type_from_openflow(ofmatch->dl_type);
     match->flow.tp_src = ofmatch->tp_src;
     match->flow.tp_dst = ofmatch->tp_dst;
@@ -190,7 +190,7 @@ ofputil_match_to_ofp10_match(const struct match *match,
 
     /* Figure out most OpenFlow wildcards. */
     ofpfw = 0;
-    if (!wc->masks.in_port) {
+    if (!wc->masks.md.in_port) {
         ofpfw |= OFPFW10_IN_PORT;
     }
     if (!wc->masks.dl_type) {
@@ -244,7 +244,7 @@ ofputil_match_to_ofp10_match(const struct match *match,
 
     /* Compose most of the match structure. */
     ofmatch->wildcards = htonl(ofpfw);
-    ofmatch->in_port = htons(match->flow.in_port);
+    ofmatch->in_port = htons(match->flow.md.in_port);
     memcpy(ofmatch->dl_src, match->flow.dl_src, ETH_ADDR_LEN);
     memcpy(ofmatch->dl_dst, match->flow.dl_dst, ETH_ADDR_LEN);
     ofmatch->dl_type = ofputil_dl_type_to_openflow(match->flow.dl_type);
@@ -466,10 +466,10 @@ ofputil_match_to_ofp11_match(const struct match *match,
     ofmatch->omh.type = htons(OFPMT_STANDARD);
     ofmatch->omh.length = htons(OFPMT11_STANDARD_LENGTH);
 
-    if (!match->wc.masks.in_port) {
+    if (!match->wc.masks.md.in_port) {
         wc |= OFPFW11_IN_PORT;
     } else {
-        ofmatch->in_port = ofputil_port_to_ofp11(match->flow.in_port);
+        ofmatch->in_port = ofputil_port_to_ofp11(match->flow.md.in_port);
     }
 
     memcpy(ofmatch->dl_src, match->flow.dl_src, ETH_ADDR_LEN);
@@ -541,8 +541,8 @@ ofputil_match_to_ofp11_match(const struct match *match,
     wc |= OFPFW11_MPLS_LABEL;
     wc |= OFPFW11_MPLS_TC;
 
-    ofmatch->metadata = match->flow.metadata;
-    ofmatch->metadata_mask = ~match->wc.masks.metadata;
+    ofmatch->metadata = match->flow.md.metadata;
+    ofmatch->metadata_mask = ~match->wc.masks.md.metadata;
 
     ofmatch->wildcards = htonl(wc);
 }
@@ -1032,7 +1032,7 @@ regs_fully_wildcarded(const struct flow_wildcards *wc)
     int i;
 
     for (i = 0; i < FLOW_N_REGS; i++) {
-        if (wc->masks.regs[i] != 0) {
+        if (wc->masks.md.regs[i] != 0) {
             return false;
         }
     }
@@ -1051,13 +1051,13 @@ ofputil_usable_protocols(const struct match *match)
     BUILD_ASSERT_DECL(FLOW_WC_SEQ == 20);
 
     /* These tunnel params can't be sent in a flow_mod */
-    if (wc->masks.tunnel.ip_ttl
-        || wc->masks.tunnel.ip_tos || wc->masks.tunnel.flags) {
+    if (wc->masks.md.tunnel.ip_ttl
+        || wc->masks.md.tunnel.ip_tos || wc->masks.md.tunnel.flags) {
         return OFPUTIL_P_NONE;
     }
 
     /* skb_mark and skb_priority can't be sent in a flow_mod */
-    if (wc->masks.skb_mark || wc->masks.skb_priority) {
+    if (wc->masks.md.skb_mark || wc->masks.md.skb_priority) {
         return OFPUTIL_P_NONE;
     }
 
@@ -1074,7 +1074,7 @@ ofputil_usable_protocols(const struct match *match)
     }
 
     /* NXM, OXM, and OF1.1+ support matching metadata. */
-    if (wc->masks.metadata != htonll(0)) {
+    if (wc->masks.md.metadata != htonll(0)) {
         return OFPUTIL_P_OF10_NXM_ANY | OFPUTIL_P_OF12_OXM
             | OFPUTIL_P_OF13_OXM;
     }
@@ -1099,9 +1099,9 @@ ofputil_usable_protocols(const struct match *match)
     }
 
     /* NXM and OXM support matching tun_id, tun_src, and tun_dst. */
-    if (wc->masks.tunnel.tun_id != htonll(0)
-        || wc->masks.tunnel.ip_src != htonl(0)
-        || wc->masks.tunnel.ip_dst != htonl(0)) {
+    if (wc->masks.md.tunnel.tun_id != htonll(0)
+        || wc->masks.md.tunnel.ip_src != htonl(0)
+        || wc->masks.md.tunnel.ip_dst != htonl(0)) {
         return OFPUTIL_P_OF10_NXM_ANY | OFPUTIL_P_OF12_OXM
             | OFPUTIL_P_OF13_OXM;
     }
@@ -2441,12 +2441,12 @@ ofputil_decode_packet_in_finish(struct ofputil_packet_in *pin,
     pin->packet = b->data;
     pin->packet_len = b->size;
 
-    pin->fmd.in_port = match->flow.in_port;
-    pin->fmd.tunnel = match->flow.tunnel;
-    pin->fmd.metadata = match->flow.metadata;
-    memcpy(pin->fmd.regs, match->flow.regs, sizeof pin->fmd.regs);
-    pin->fmd.skb_priority = match->flow.skb_priority;
-    pin->fmd.skb_mark = match->flow.skb_mark;
+    pin->fmd.in_port = match->flow.md.in_port;
+    pin->fmd.tunnel = match->flow.md.tunnel;
+    pin->fmd.metadata = match->flow.md.metadata;
+    memcpy(pin->fmd.regs, match->flow.md.regs, sizeof pin->fmd.regs);
+    pin->fmd.skb_priority = match->flow.md.skb_priority;
+    pin->fmd.skb_mark = match->flow.md.skb_mark;
 }
 
 enum ofperr

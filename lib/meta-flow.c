@@ -677,24 +677,24 @@ mf_is_all_wild(const struct mf_field *mf, const struct flow_wildcards *wc)
 {
     switch (mf->id) {
     case MFF_TUN_SRC:
-        return !wc->masks.tunnel.ip_src;
+        return !wc->masks.md.tunnel.ip_src;
     case MFF_TUN_DST:
-        return !wc->masks.tunnel.ip_dst;
+        return !wc->masks.md.tunnel.ip_dst;
     case MFF_TUN_ID:
     case MFF_TUN_TOS:
     case MFF_TUN_TTL:
     case MFF_TUN_FLAGS:
-        return !wc->masks.tunnel.tun_id;
+        return !wc->masks.md.tunnel.tun_id;
     case MFF_METADATA:
-        return !wc->masks.metadata;
+        return !wc->masks.md.metadata;
     case MFF_IN_PORT:
-        return !wc->masks.in_port;
+        return !wc->masks.md.in_port;
     case MFF_SKB_PRIORITY:
-        return !wc->masks.skb_priority;
+        return !wc->masks.md.skb_priority;
     case MFF_SKB_MARK:
-        return !wc->masks.skb_mark;
+        return !wc->masks.md.skb_mark;
     CASE_MFF_REGS:
-        return !wc->masks.regs[mf->id - MFF_REG0];
+        return !wc->masks.md.regs[mf->id - MFF_REG0];
 
     case MFF_ETH_SRC:
         return eth_addr_is_zero(wc->masks.dl_src);
@@ -973,42 +973,42 @@ mf_get_value(const struct mf_field *mf, const struct flow *flow,
 {
     switch (mf->id) {
     case MFF_TUN_ID:
-        value->be64 = flow->tunnel.tun_id;
+        value->be64 = flow->md.tunnel.tun_id;
         break;
     case MFF_TUN_SRC:
-        value->be32 = flow->tunnel.ip_src;
+        value->be32 = flow->md.tunnel.ip_src;
         break;
     case MFF_TUN_DST:
-        value->be32 = flow->tunnel.ip_dst;
+        value->be32 = flow->md.tunnel.ip_dst;
         break;
     case MFF_TUN_FLAGS:
-        value->be16 = htons(flow->tunnel.flags);
+        value->be16 = htons(flow->md.tunnel.flags);
         break;
     case MFF_TUN_TTL:
-        value->u8 = flow->tunnel.ip_ttl;
+        value->u8 = flow->md.tunnel.ip_ttl;
         break;
     case MFF_TUN_TOS:
-        value->u8 = flow->tunnel.ip_tos;
+        value->u8 = flow->md.tunnel.ip_tos;
         break;
 
     case MFF_METADATA:
-        value->be64 = flow->metadata;
+        value->be64 = flow->md.metadata;
         break;
 
     case MFF_IN_PORT:
-        value->be16 = htons(flow->in_port);
+        value->be16 = htons(flow->md.in_port);
         break;
 
     case MFF_SKB_PRIORITY:
-        value->be32 = htonl(flow->skb_priority);
+        value->be32 = htonl(flow->md.skb_priority);
         break;
 
     case MFF_SKB_MARK:
-        value->be32 = htonl(flow->skb_mark);
+        value->be32 = htonl(flow->md.skb_mark);
         break;
 
     CASE_MFF_REGS:
-        value->be32 = htonl(flow->regs[mf->id - MFF_REG0]);
+        value->be32 = htonl(flow->md.regs[mf->id - MFF_REG0]);
         break;
 
     case MFF_ETH_SRC:
@@ -1339,42 +1339,42 @@ mf_set_flow_value(const struct mf_field *mf,
 {
     switch (mf->id) {
     case MFF_TUN_ID:
-        flow->tunnel.tun_id = value->be64;
+        flow->md.tunnel.tun_id = value->be64;
         break;
     case MFF_TUN_SRC:
-        flow->tunnel.ip_src = value->be32;
+        flow->md.tunnel.ip_src = value->be32;
         break;
     case MFF_TUN_DST:
-        flow->tunnel.ip_dst = value->be32;
+        flow->md.tunnel.ip_dst = value->be32;
         break;
     case MFF_TUN_FLAGS:
-        flow->tunnel.flags = ntohs(value->be16);
+        flow->md.tunnel.flags = ntohs(value->be16);
         break;
     case MFF_TUN_TOS:
-        flow->tunnel.ip_tos = value->u8;
+        flow->md.tunnel.ip_tos = value->u8;
         break;
     case MFF_TUN_TTL:
-        flow->tunnel.ip_ttl = value->u8;
+        flow->md.tunnel.ip_ttl = value->u8;
         break;
 
     case MFF_METADATA:
-        flow->metadata = value->be64;
+        flow->md.metadata = value->be64;
         break;
 
     case MFF_IN_PORT:
-        flow->in_port = ntohs(value->be16);
+        flow->md.in_port = ntohs(value->be16);
         break;
 
     case MFF_SKB_PRIORITY:
-        flow->skb_priority = ntohl(value->be32);
+        flow->md.skb_priority = ntohl(value->be32);
         break;
 
     case MFF_SKB_MARK:
-        flow->skb_mark = ntohl(value->be32);
+        flow->md.skb_mark = ntohl(value->be32);
         break;
 
     CASE_MFF_REGS:
-        flow->regs[mf->id - MFF_REG0] = ntohl(value->be32);
+        flow->md.regs[mf->id - MFF_REG0] = ntohl(value->be32);
         break;
 
     case MFF_ETH_SRC:
@@ -1561,18 +1561,18 @@ mf_set_wild(const struct mf_field *mf, struct match *match)
         break;
 
     case MFF_IN_PORT:
-        match->flow.in_port = 0;
-        match->wc.masks.in_port = 0;
+        match->flow.md.in_port = 0;
+        match->wc.masks.md.in_port = 0;
         break;
 
     case MFF_SKB_PRIORITY:
-        match->flow.skb_priority = 0;
-        match->wc.masks.skb_priority = 0;
+        match->flow.md.skb_priority = 0;
+        match->wc.masks.md.skb_priority = 0;
         break;
 
     case MFF_SKB_MARK:
-        match->flow.skb_mark = 0;
-        match->wc.masks.skb_mark = 0;
+        match->flow.md.skb_mark = 0;
+        match->wc.masks.md.skb_mark = 0;
         break;
 
     CASE_MFF_REGS:

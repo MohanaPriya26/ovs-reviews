@@ -120,7 +120,7 @@ struct flow_metadata {
     struct flow_tnl tunnel;          /* Encapsulating tunnel parameters. */
     ovs_be64 metadata;               /* OpenFlow 1.1+ metadata field. */
     uint32_t regs[FLOW_N_REGS];      /* Registers. */
-    uint16_t in_port;                /* OpenFlow port or zero. */
+    uint32_t in_port;                /* OpenFlow port or zero. */
 };
 
 void flow_extract(struct ofpbuf *, uint32_t priority, uint32_t mark,

@@ -2442,9 +2442,7 @@ ofputil_decode_packet_in_finish(struct ofputil_packet_in *pin,
     pin->packet_len = b->size;
 
     pin->fmd.in_port = match->flow.in_port;
-    pin->fmd.tun_id = match->flow.tunnel.tun_id;
-    pin->fmd.tun_src = match->flow.tunnel.ip_src;
-    pin->fmd.tun_dst = match->flow.tunnel.ip_dst;
+    pin->fmd.tunnel = match->flow.tunnel;
     pin->fmd.metadata = match->flow.metadata;
     memcpy(pin->fmd.regs, match->flow.regs, sizeof pin->fmd.regs);
 }
@@ -2542,14 +2540,14 @@ ofputil_packet_in_to_match(const struct ofputil_packet_in *pin,
     int i;
 
     match_init_catchall(match);
-    if (pin->fmd.tun_id != htonll(0)) {
-        match_set_tun_id(match, pin->fmd.tun_id);
+    if (pin->fmd.tunnel.tun_id != htonll(0)) {
+        match_set_tun_id(match, pin->fmd.tunnel.tun_id);
     }
-    if (pin->fmd.tun_src != htonl(0)) {
-        match_set_tun_src(match, pin->fmd.tun_src);
+    if (pin->fmd.tunnel.ip_src != htonl(0)) {
+        match_set_tun_src(match, pin->fmd.tunnel.ip_src);
     }
-    if (pin->fmd.tun_dst != htonl(0)) {
-        match_set_tun_dst(match, pin->fmd.tun_dst);
+    if (pin->fmd.tunnel.ip_dst != htonl(0)) {
+        match_set_tun_dst(match, pin->fmd.tunnel.ip_dst);
     }
     if (pin->fmd.metadata != htonll(0)) {
         match_set_metadata(match, pin->fmd.metadata);

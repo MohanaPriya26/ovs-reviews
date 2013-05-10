@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2011, 2012 Nicira, Inc.
+ * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -559,7 +559,7 @@ process_packet_in(struct lswitch *sw, const struct ofp_header *oh)
     /* Extract flow data from 'opi' into 'flow'. */
     ofpbuf_use_const(&pkt, pi.packet, pi.packet_len);
     flow_extract(&pkt, 0, 0, NULL, pi.fmd.in_port, &flow);
-    flow.tunnel.tun_id = pi.fmd.tun_id;
+    flow.tunnel = pi.fmd.tunnel;
 
     /* Choose output port. */
     out_port = lswitch_choose_destination(sw, &flow);

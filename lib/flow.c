@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2011, 2012 Nicira, Inc.
+ * Copyright (c) 2008, 2009, 2010, 2011, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -493,9 +493,7 @@ flow_get_metadata(const struct flow *flow, struct flow_metadata *fmd)
 {
     BUILD_ASSERT_DECL(FLOW_WC_SEQ == 20);
 
-    fmd->tun_id = flow->tunnel.tun_id;
-    fmd->tun_src = flow->tunnel.ip_src;
-    fmd->tun_dst = flow->tunnel.ip_dst;
+    fmd->tunnel = flow->tunnel;
     fmd->metadata = flow->metadata;
     memcpy(fmd->regs, flow->regs, sizeof fmd->regs);
     fmd->in_port = flow->in_port;

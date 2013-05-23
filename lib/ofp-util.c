@@ -15,32 +15,22 @@
  */
 
 #include <config.h>
-#include "ofp-print.h"
+#include "ofp-util.h"
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <sys/types.h>
-#include <netinet/in.h>
 #include <netinet/icmp6.h>
-#include <stdlib.h>
-#include "bundle.h"
 #include "byte-order.h"
-#include "classifier.h"
 #include "dynamic-string.h"
-#include "learn.h"
-#include "meta-flow.h"
-#include "multipath.h"
 #include "netdev.h"
 #include "nx-match.h"
 #include "ofp-actions.h"
 #include "ofp-errors.h"
 #include "ofp-msgs.h"
-#include "ofp-util.h"
 #include "ofpbuf.h"
-#include "packets.h"
-#include "random.h"
-#include "unaligned.h"
 #include "type-props.h"
+#include "unaligned.h"
 #include "vlog.h"
 
 VLOG_DEFINE_THIS_MODULE(ofp_util);

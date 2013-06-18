@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2012 Nicira, Inc.
+ * Copyright (c) 2008, 2009, 2010, 2012, 2013 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ hmap_node_nullify(struct hmap_node *node)
 struct hmap {
     struct hmap_node **buckets; /* Must point to 'one' iff 'mask' == 0. */
     struct hmap_node *one;
-    size_t mask;
+    size_t mask;         /* 0 or more lowest-order bits set, others cleared. */
     size_t n;
 };
 

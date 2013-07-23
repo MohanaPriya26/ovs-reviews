@@ -15,6 +15,8 @@ post-v1.11.0
       through database paths (e.g. Private key option with the database name
       should look like "--private-key=db:Open_vSwitch,SSL,private_key").
     - Added ovs-dev.py, a utility script helpful for Open vSwitch developers.
+    - ovs-ofctl:
+      * New "ofp-parse" for printing OpenFlow messages read from a file.
 
 
 v1.11.0 - xx xxx xxxx

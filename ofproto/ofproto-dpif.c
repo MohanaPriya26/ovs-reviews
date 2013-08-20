@@ -3898,10 +3898,12 @@ handle_flow_miss(struct flow_miss *miss, struct flow_miss_op *ops,
         if (miss->key_fitness == ODP_FIT_TOO_LITTLE
             || !flow_miss_should_make_facet(miss, &xout.wc)) {
             handle_flow_miss_without_facet(rule, &xout, miss, ops, n_ops);
+            xlate_out_uninit(&xout);
             return;
         }
 
         facet = facet_create(miss, rule, &xout, stats);
+        xlate_out_uninit(&xout);
         stats = NULL;
     }
     handle_flow_miss_with_facet(miss, facet, now, stats, ops, n_ops);

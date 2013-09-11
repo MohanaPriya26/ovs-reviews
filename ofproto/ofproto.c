@@ -3614,32 +3614,35 @@ is_flow_deletion_pending(const struct ofproto *ofproto,
     return false;
 }
 
-static enum ofperr
-evict_rule_from_table(struct ofproto *ofproto, struct oftable *table)
+static bool
+should_evict_a_rule(struct oftable *table, unsigned int extra_space)
+    OVS_NO_THREAD_SAFETY_ANALYSIS
 {
-    struct rule *rule;
-    size_t n_rules;
+    return classifier_count(&table->cls) + extra_space > table->max_flows;
+}
 
-    ovs_rwlock_rdlock(&table->cls.rwlock);
-    n_rules = classifier_count(&table->cls);
-    ovs_rwlock_unlock(&table->cls.rwlock);
+static enum ofperr
+evict_rules_from_table(struct ofproto *ofproto, struct oftable *table,
+                       unsigned int extra_space)
+{
+    while (should_evict_a_rule(table, extra_space)) {
+        struct rule *rule;
 
-    if (n_rules < table->max_flows) {
-        return 0;
-    } else if (!choose_rule_to_evict(table, &rule)) {
-        return OFPERR_OFPFMFC_TABLE_FULL;
-    } else if (rule->pending) {
-        ovs_mutex_unlock(&rule->mutex);
-        return OFPROTO_POSTPONE;
-    } else {
-        struct ofopgroup *group;
-
-        group = ofopgroup_create_unattached(ofproto);
-        delete_flow__(rule, group, OFPRR_EVICTION);
-        ofopgroup_submit(group);
-
-        return 0;
+        if (!choose_rule_to_evict(table, &rule)) {
+            return OFPERR_OFPFMFC_TABLE_FULL;
+        } else if (rule->pending) {
+            ovs_mutex_unlock(&rule->mutex);
+            return OFPROTO_POSTPONE;
+        } else {
+            struct ofopgroup *group = ofopgroup_create_unattached(ofproto);
+            ofoperation_create(group, rule,
+                               OFOPERATION_DELETE, OFPRR_EVICTION);
+            oftable_remove_rule(rule);
+            ofproto->ofproto_class->rule_delete(rule);
+        }
     }
+
+    return 0;
 }
 
 /* Implements OFPFC_ADD and the cases for OFPFC_MODIFY and OFPFC_MODIFY_STRICT
@@ -3749,7 +3752,7 @@ add_flow(struct ofproto *ofproto, struct ofconn *ofconn,
     }
 
     /* If necessary, evict an existing rule to clear out space. */
-    error = evict_rule_from_table(ofproto, table);
+    error = evict_rules_from_table(ofproto, table, 1);
     if (error) {
         cls_rule_destroy(&cr);
         return error;
@@ -6009,39 +6012,11 @@ choose_rule_to_evict(struct oftable *table, struct rule **rulep)
 static void
 ofproto_evict(struct ofproto *ofproto)
 {
-    struct ofopgroup *group;
     struct oftable *table;
 
-    group = ofopgroup_create_unattached(ofproto);
     OFPROTO_FOR_EACH_TABLE (table, ofproto) {
-        while (table->eviction_fields) {
-            struct rule *rule;
-            size_t n_rules;
-
-            ovs_rwlock_rdlock(&table->cls.rwlock);
-            n_rules = classifier_count(&table->cls);
-            ovs_rwlock_unlock(&table->cls.rwlock);
-
-            if (n_rules <= table->max_flows) {
-                break;
-            }
-
-            if (!choose_rule_to_evict(table, &rule)) {
-                break;
-            }
-
-            if (rule->pending) {
-                ovs_mutex_unlock(&rule->mutex);
-                break;
-            }
-
-            ofoperation_create(group, rule,
-                               OFOPERATION_DELETE, OFPRR_EVICTION);
-            oftable_remove_rule(rule);
-            ofproto->ofproto_class->rule_delete(rule);
-        }
+        evict_rules_from_table(ofproto, table, 0);
     }
-    ofopgroup_submit(group);
 }
 
 /* Eviction groups. */

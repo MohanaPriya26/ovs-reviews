@@ -242,7 +242,8 @@ static enum ofperr add_flow(struct ofproto *, struct ofconn *,
                             const struct ofp_header *);
 static enum ofperr modify_flows__(struct ofproto *, struct ofconn *,
                                   struct ofputil_flow_mod *,
-                                  const struct ofp_header *, struct list *);
+                                  const struct ofp_header *,
+                                  const struct rule_collection *);
 static void delete_flow__(struct rule *rule, struct ofopgroup *,
                           enum ofp_flow_removed_reason)
     OVS_RELEASES(rule->rwlock);
@@ -2992,9 +2993,46 @@ rule_criteria_destroy(struct rule_criteria *criteria)
     cls_rule_destroy(&criteria->cr);
 }
 
+void
+rule_collection_init(struct rule_collection *rules)
+{
+    rules->rules = rules->stub;
+    rules->n = 0;
+    rules->capacity = ARRAY_SIZE(rules->stub);
+}
+
+void
+rule_collection_add(struct rule_collection *rules, struct rule *rule)
+{
+    if (rules->n >= rules->capacity) {
+        size_t old_size, new_size;
+
+        old_size = rules->capacity * sizeof *rules->rules;
+        rules->capacity *= 2;
+        new_size = rules->capacity * sizeof *rules->rules;
+
+        if (rules->rules == rules->stub) {
+            rules->rules = xmalloc(new_size);
+            memcpy(rules->rules, rules->stub, old_size);
+        } else {
+            rules->rules = xrealloc(rules->rules, new_size);
+        }
+    }
+
+    rules->rules[rules->n++] = rule;
+}
+
+void
+rule_collection_destroy(struct rule_collection *rules)
+{
+    if (rules->rules != rules->stub) {
+        free(rules->rules);
+    }
+}
+
 static enum ofperr
 collect_rule(struct rule *rule, const struct rule_criteria *c,
-             struct list *rules)
+             struct rule_collection *rules)
 {
     if (ofproto_rule_is_hidden(rule)) {
         return 0;
@@ -3005,7 +3043,7 @@ collect_rule(struct rule *rule, const struct rule_criteria *c,
             && ofproto_rule_has_out_port(rule, c->out_port)
             && ofproto_rule_has_out_group(rule, c->out_group)
             && !((rule->flow_cookie ^ c->cookie) & c->cookie_mask)) {
-            list_push_back(rules, &rule->ofproto_node);
+            rule_collection_add(rules, rule);
         }
         return 0;
     }
@@ -3021,17 +3059,18 @@ collect_rule(struct rule *rule, const struct rule_criteria *c,
  * Returns 0 on success, otherwise an OpenFlow error code. */
 static enum ofperr
 collect_rules_loose(struct ofproto *ofproto,
-                    const struct rule_criteria *criteria, struct list *rules)
+                    const struct rule_criteria *criteria,
+                    struct rule_collection *rules)
 {
     struct oftable *table;
     enum ofperr error;
 
+    rule_collection_init(rules);
+
     error = check_table_id(ofproto, criteria->table_id);
     if (error) {
-        return error;
+        goto exit;
     }
-
-    list_init(rules);
 
     if (criteria->cookie_mask == htonll(UINT64_MAX)) {
         struct rule *rule;
@@ -3063,6 +3102,10 @@ collect_rules_loose(struct ofproto *ofproto,
         }
     }
 
+exit:
+    if (error) {
+        rule_collection_destroy(rules);
+    }
     return error;
 }
 
@@ -3076,17 +3119,18 @@ collect_rules_loose(struct ofproto *ofproto,
  * Returns 0 on success, otherwise an OpenFlow error code. */
 static enum ofperr
 collect_rules_strict(struct ofproto *ofproto,
-                     const struct rule_criteria *criteria, struct list *rules)
+                     const struct rule_criteria *criteria,
+                     struct rule_collection *rules)
 {
     struct oftable *table;
     int error;
 
+    rule_collection_init(rules);
+
     error = check_table_id(ofproto, criteria->table_id);
     if (error) {
-        return error;
+        goto exit;
     }
-
-    list_init(rules);
 
     if (criteria->cookie_mask == htonll(UINT64_MAX)) {
         struct rule *rule;
@@ -3118,6 +3162,10 @@ collect_rules_strict(struct ofproto *ofproto,
         }
     }
 
+exit:
+    if (error) {
+        rule_collection_destroy(rules);
+    }
     return error;
 }
 
@@ -3138,10 +3186,10 @@ handle_flow_stats_request(struct ofconn *ofconn,
     struct ofproto *ofproto = ofconn_get_ofproto(ofconn);
     struct ofputil_flow_stats_request fsr;
     struct rule_criteria criteria;
+    struct rule_collection rules;
     struct list replies;
-    struct list rules;
-    struct rule *rule;
     enum ofperr error;
+    size_t i;
 
     error = ofputil_decode_flow_stats_request(&fsr, request);
     if (error) {
@@ -3157,7 +3205,8 @@ handle_flow_stats_request(struct ofconn *ofconn,
     }
 
     ofpmp_init(&replies, request);
-    LIST_FOR_EACH (rule, ofproto_node, &rules) {
+    for (i = 0; i < rules.n; i++) {
+        struct rule *rule = rules.rules[i];
         long long int now = time_msec();
         struct ofputil_flow_stats fs;
 
@@ -3182,6 +3231,8 @@ handle_flow_stats_request(struct ofconn *ofconn,
 
         ofputil_append_flow_stats_reply(&fs, &replies);
     }
+    rule_collection_destroy(&rules);
+
     ofconn_send_replies(ofconn, &replies);
 
     return 0;
@@ -3263,10 +3314,10 @@ handle_aggregate_stats_request(struct ofconn *ofconn,
     struct ofputil_aggregate_stats stats;
     bool unknown_packets, unknown_bytes;
     struct rule_criteria criteria;
+    struct rule_collection rules;
     struct ofpbuf *reply;
-    struct list rules;
-    struct rule *rule;
     enum ofperr error;
+    size_t i;
 
     error = ofputil_decode_flow_stats_request(&request, oh);
     if (error) {
@@ -3284,7 +3335,8 @@ handle_aggregate_stats_request(struct ofconn *ofconn,
 
     memset(&stats, 0, sizeof stats);
     unknown_packets = unknown_bytes = false;
-    LIST_FOR_EACH (rule, ofproto_node, &rules) {
+    for (i = 0; i < rules.n; i++) {
+        struct rule *rule = rules.rules[i];
         uint64_t packet_count;
         uint64_t byte_count;
 
@@ -3311,6 +3363,8 @@ handle_aggregate_stats_request(struct ofconn *ofconn,
     if (unknown_bytes) {
         stats.byte_count = UINT64_MAX;
     }
+
+    rule_collection_destroy(&rules);
 
     reply = ofputil_encode_aggregate_stats_reply(&stats, oh);
     ofconn_send_reply(ofconn, reply);
@@ -3531,12 +3585,15 @@ add_flow(struct ofproto *ofproto, struct ofconn *ofconn,
         } else if (rule->pending) {
             return OFPROTO_POSTPONE;
         } else {
-            struct list rules;
+            struct rule_collection rules;
 
-            list_init(&rules);
-            list_push_back(&rules, &rule->ofproto_node);
+            rule_collection_init(&rules);
+            rule_collection_add(&rules, rule);
             fm->modify_cookie = true;
-            return modify_flows__(ofproto, ofconn, fm, request, &rules);
+            error = modify_flows__(ofproto, ofconn, fm, request, &rules);
+            rule_collection_destroy(&rules);
+
+            return error;
         }
     }
 
@@ -3641,17 +3698,18 @@ add_flow(struct ofproto *ofproto, struct ofconn *ofconn,
 static enum ofperr
 modify_flows__(struct ofproto *ofproto, struct ofconn *ofconn,
                struct ofputil_flow_mod *fm, const struct ofp_header *request,
-               struct list *rules)
+               const struct rule_collection *rules)
 {
     enum ofoperation_type type;
     struct ofopgroup *group;
-    struct rule *rule;
     enum ofperr error;
+    size_t i;
 
     type = fm->command == OFPFC_ADD ? OFOPERATION_REPLACE : OFOPERATION_MODIFY;
     group = ofopgroup_create(ofproto, ofconn, request, fm->buffer_id);
     error = OFPERR_OFPBRC_EPERM;
-    LIST_FOR_EACH (rule, ofproto_node, rules) {
+    for (i = 0; i < rules->n; i++) {
+        struct rule *rule = rules->rules[i];
         struct ofoperation *op;
         bool actions_changed;
         bool reset_counters;
@@ -3740,7 +3798,7 @@ modify_flows_loose(struct ofproto *ofproto, struct ofconn *ofconn,
                    const struct ofp_header *request)
 {
     struct rule_criteria criteria;
-    struct list rules;
+    struct rule_collection rules;
     int error;
 
     rule_criteria_init(&criteria, fm->table_id, &fm->match, 0,
@@ -3748,13 +3806,15 @@ modify_flows_loose(struct ofproto *ofproto, struct ofconn *ofconn,
     error = collect_rules_loose(ofproto, &criteria, &rules);
     rule_criteria_destroy(&criteria);
 
-    if (error) {
-        return error;
-    } else if (list_is_empty(&rules)) {
-        return modify_flows_add(ofproto, ofconn, fm, request);
-    } else {
-        return modify_flows__(ofproto, ofconn, fm, request, &rules);
+    if (!error) {
+        error = (rules.n > 0
+                 ? modify_flows__(ofproto, ofconn, fm, request, &rules)
+                 : modify_flows_add(ofproto, ofconn, fm, request));
     }
+
+    rule_collection_destroy(&rules);
+
+    return error;
 }
 
 /* Implements OFPFC_MODIFY_STRICT.  Returns 0 on success or an OpenFlow error
@@ -3768,7 +3828,7 @@ modify_flow_strict(struct ofproto *ofproto, struct ofconn *ofconn,
                    const struct ofp_header *request)
 {
     struct rule_criteria criteria;
-    struct list rules;
+    struct rule_collection rules;
     int error;
 
     rule_criteria_init(&criteria, fm->table_id, &fm->match, fm->priority,
@@ -3776,15 +3836,17 @@ modify_flow_strict(struct ofproto *ofproto, struct ofconn *ofconn,
     error = collect_rules_strict(ofproto, &criteria, &rules);
     rule_criteria_destroy(&criteria);
 
-    if (error) {
-        return error;
-    } else if (list_is_empty(&rules)) {
-        return modify_flows_add(ofproto, ofconn, fm, request);
-    } else {
-        return list_is_singleton(&rules) ? modify_flows__(ofproto, ofconn,
-                                                          fm, request, &rules)
-                                         : 0;
+    if (!error) {
+        if (rules.n == 0) {
+            error =  modify_flows_add(ofproto, ofconn, fm, request);
+        } else if (rules.n == 1) {
+            error = modify_flows__(ofproto, ofconn, fm, request, &rules);
+        }
     }
+
+    rule_collection_destroy(&rules);
+
+    return error;
 }
 
 /* OFPFC_DELETE implementation. */
@@ -3807,14 +3869,16 @@ delete_flow__(struct rule *rule, struct ofopgroup *group,
  * Returns 0 on success, otherwise an OpenFlow error code. */
 static enum ofperr
 delete_flows__(struct ofproto *ofproto, struct ofconn *ofconn,
-               const struct ofp_header *request, struct list *rules,
+               const struct ofp_header *request,
+               const struct rule_collection *rules,
                enum ofp_flow_removed_reason reason)
 {
-    struct rule *rule, *next;
     struct ofopgroup *group;
+    size_t i;
 
     group = ofopgroup_create(ofproto, ofconn, request, UINT32_MAX);
-    LIST_FOR_EACH_SAFE (rule, next, ofproto_node, rules) {
+    for (i = 0; i < rules->n; i++) {
+        struct rule *rule = rules->rules[i];
         ovs_rwlock_wrlock(&rule->rwlock);
         delete_flow__(rule, group, reason);
     }
@@ -3830,7 +3894,7 @@ delete_flows_loose(struct ofproto *ofproto, struct ofconn *ofconn,
                    const struct ofp_header *request)
 {
     struct rule_criteria criteria;
-    struct list rules;
+    struct rule_collection rules;
     enum ofperr error;
 
     rule_criteria_init(&criteria, fm->table_id, &fm->match, 0,
@@ -3839,10 +3903,12 @@ delete_flows_loose(struct ofproto *ofproto, struct ofconn *ofconn,
     error = collect_rules_loose(ofproto, &criteria, &rules);
     rule_criteria_destroy(&criteria);
 
-    return (error ? error
-            : !list_is_empty(&rules) ? delete_flows__(ofproto, ofconn, request,
-                                                      &rules, OFPRR_DELETE)
-            : 0);
+    if (!error && rules.n > 0) {
+        error = delete_flows__(ofproto, ofconn, request, &rules, OFPRR_DELETE);
+    }
+    rule_collection_destroy(&rules);
+
+    return error;
 }
 
 /* Implements OFPFC_DELETE_STRICT. */
@@ -3852,7 +3918,7 @@ delete_flow_strict(struct ofproto *ofproto, struct ofconn *ofconn,
                    const struct ofp_header *request)
 {
     struct rule_criteria criteria;
-    struct list rules;
+    struct rule_collection rules;
     enum ofperr error;
 
     rule_criteria_init(&criteria, fm->table_id, &fm->match, fm->priority,
@@ -3861,11 +3927,12 @@ delete_flow_strict(struct ofproto *ofproto, struct ofconn *ofconn,
     error = collect_rules_strict(ofproto, &criteria, &rules);
     rule_criteria_destroy(&criteria);
 
-    return (error ? error
-            : list_is_singleton(&rules) ? delete_flows__(ofproto, ofconn,
-                                                         request, &rules,
-                                                         OFPRR_DELETE)
-            : 0);
+    if (!error && rules.n > 0) {
+        error = delete_flows__(ofproto, ofconn, request, &rules, OFPRR_DELETE);
+    }
+    rule_collection_destroy(&rules);
+
+    return error;
 }
 
 static void
@@ -4289,11 +4356,13 @@ ofproto_compose_flow_refresh_update(const struct rule *rule,
 }
 
 void
-ofmonitor_compose_refresh_updates(struct list *rules, struct list *msgs)
+ofmonitor_compose_refresh_updates(struct rule_collection *rules,
+                                  struct list *msgs)
 {
-    struct rule *rule;
+    size_t i;
 
-    LIST_FOR_EACH (rule, ofproto_node, rules) {
+    for (i = 0; i < rules->n; i++) {
+        struct rule *rule = rules->rules[i];
         enum nx_flow_monitor_flags flags = rule->monitor_flags;
         rule->monitor_flags = 0;
 
@@ -4304,7 +4373,7 @@ ofmonitor_compose_refresh_updates(struct list *rules, struct list *msgs)
 static void
 ofproto_collect_ofmonitor_refresh_rule(const struct ofmonitor *m,
                                        struct rule *rule, uint64_t seqno,
-                                       struct list *rules)
+                                       struct rule_collection *rules)
 {
     enum nx_flow_monitor_flags update;
 
@@ -4335,7 +4404,7 @@ ofproto_collect_ofmonitor_refresh_rule(const struct ofmonitor *m,
     }
 
     if (!rule->monitor_flags) {
-        list_push_back(rules, &rule->ofproto_node);
+        rule_collection_add(rules, rule);
     }
     rule->monitor_flags |= update | (m->flags & NXFMF_ACTIONS);
 }
@@ -4343,7 +4412,7 @@ ofproto_collect_ofmonitor_refresh_rule(const struct ofmonitor *m,
 static void
 ofproto_collect_ofmonitor_refresh_rules(const struct ofmonitor *m,
                                         uint64_t seqno,
-                                        struct list *rules)
+                                        struct rule_collection *rules)
 {
     const struct ofproto *ofproto = ofconn_get_ofproto(m->ofconn);
     const struct ofoperation *op;
@@ -4379,7 +4448,7 @@ ofproto_collect_ofmonitor_refresh_rules(const struct ofmonitor *m,
 
 static void
 ofproto_collect_ofmonitor_initial_rules(struct ofmonitor *m,
-                                        struct list *rules)
+                                        struct rule_collection *rules)
 {
     if (m->flags & NXFMF_INITIAL) {
         ofproto_collect_ofmonitor_refresh_rules(m, 0, rules);
@@ -4388,7 +4457,7 @@ ofproto_collect_ofmonitor_initial_rules(struct ofmonitor *m,
 
 void
 ofmonitor_collect_resume_rules(struct ofmonitor *m,
-                               uint64_t seqno, struct list *rules)
+                               uint64_t seqno, struct rule_collection *rules)
 {
     ofproto_collect_ofmonitor_refresh_rules(m, seqno, rules);
 }
@@ -4399,9 +4468,9 @@ handle_flow_monitor_request(struct ofconn *ofconn, const struct ofp_header *oh)
     struct ofproto *ofproto = ofconn_get_ofproto(ofconn);
     struct ofmonitor **monitors;
     size_t n_monitors, allocated_monitors;
+    struct rule_collection rules;
     struct list replies;
     enum ofperr error;
-    struct list rules;
     struct ofpbuf b;
     size_t i;
 
@@ -4440,13 +4509,15 @@ handle_flow_monitor_request(struct ofconn *ofconn, const struct ofp_header *oh)
         monitors[n_monitors++] = m;
     }
 
-    list_init(&rules);
+    rule_collection_init(&rules);
     for (i = 0; i < n_monitors; i++) {
         ofproto_collect_ofmonitor_initial_rules(monitors[i], &rules);
     }
 
     ofpmp_init(&replies, oh);
     ofmonitor_compose_refresh_updates(&rules, &replies);
+    rule_collection_destroy(&rules);
+
     ofconn_send_replies(ofconn, &replies);
 
     free(monitors);
@@ -4605,8 +4676,9 @@ handle_delete_meter(struct ofconn *ofconn, const struct ofp_header *oh,
 {
     struct ofproto *ofproto = ofconn_get_ofproto(ofconn);
     uint32_t meter_id = mm->meter.meter_id;
+    struct rule_collection rules;
+    enum ofperr error = 0;
     uint32_t first, last;
-    struct list rules;
 
     if (meter_id == OFPM13_ALL) {
         first = 1;
@@ -4620,7 +4692,7 @@ handle_delete_meter(struct ofconn *ofconn, const struct ofp_header *oh,
 
     /* First delete the rules that use this meter.  If any of those rules are
      * currently being modified, postpone the whole operation until later. */
-    list_init(&rules);
+    rule_collection_init(&rules);
     for (meter_id = first; meter_id <= last; ++meter_id) {
         struct meter *meter = ofproto->meters[meter_id];
         if (meter && !list_is_empty(&meter->rules)) {
@@ -4628,20 +4700,24 @@ handle_delete_meter(struct ofconn *ofconn, const struct ofp_header *oh,
 
             LIST_FOR_EACH (rule, meter_list_node, &meter->rules) {
                 if (rule->pending) {
-                    return OFPROTO_POSTPONE;
+                    error = OFPROTO_POSTPONE;
+                    goto exit;
                 }
-                list_push_back(&rules, &rule->ofproto_node);
+                rule_collection_add(&rules, rule);
             }
         }
     }
-    if (!list_is_empty(&rules)) {
+    if (rules.n > 0) {
         delete_flows__(ofproto, ofconn, oh, &rules, OFPRR_METER_DELETE);
     }
 
     /* Delete the meters. */
     meter_delete(ofproto, first, last);
 
-    return 0;
+exit:
+    rule_collection_destroy(&rules);
+
+    return error;
 }
 
 static enum ofperr

@@ -173,7 +173,7 @@ void ofproto_type_wait(const char *datapath_type);
 int ofproto_create(const char *datapath, const char *datapath_type,
                    struct ofproto **ofprotop);
 void ofproto_destroy(struct ofproto *);
-int ofproto_delete(const char *name, const char *type);
+;int ofproto_delete(const char *name, const char *type);
 
 int ofproto_run(struct ofproto *);
 int ofproto_run_fast(struct ofproto *);

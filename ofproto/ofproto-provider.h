@@ -369,8 +369,8 @@ struct rule {
     struct eviction_group *eviction_group OVS_GUARDED_BY(ofproto_mutex);
     struct heap_node evg_node OVS_GUARDED_BY(ofproto_mutex);
 
-    /* OpenFlow actions.  See additional thread-safe notes on struct
-     * rule_actions. */
+    /* OpenFlow actions.  See struct rule_actions for more thread-safety
+     * notes. */
     struct rule_actions *actions OVS_GUARDED;
 
     /* In owning meter's 'rules' list.  An empty list if there is no meter. */

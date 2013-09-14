@@ -346,7 +346,8 @@ between a switch and its controller.
 When a switch has more than one controller configured, only the
 traffic to and from a single controller is output.  If none of the
 controllers is configured as a master or a slave (using a Nicira
-extension to OpenFlow), then a controller is chosen arbitrarily among
+extension to OpenFlow 1.0 or 1.1, or a standard request in OpenFlow
+1.2 or later), then a controller is chosen arbitrarily among
 them.  If there is a master controller, it is chosen; otherwise, if
 there are any controllers that are not masters or slaves, one is
 chosen arbitrarily; otherwise, a slave controller is chosen
@@ -704,9 +705,10 @@ are matches in more than one table.  The \fBdump-flows\fR and
 all tables.
 .IP
 When this field is specified in \fBadd-flow\fR, \fBadd-flows\fR,
-\fBmod-flows\fR and \fBdel-flows\fR commands, it activates a Nicira
-extension to OpenFlow, which as of this writing is only known to be
-implemented by Open vSwitch.
+\fBmod-flows\fR and \fBdel-flows\fR commands in OpenFlow 1.0, it
+activates a Nicira extension to OpenFlow, which as of this writing is
+only known to be implemented by Open vSwitch.  Later versions of
+OpenFlow standardized this feature.
 .
 .IP \fBmetadata=\fIvalue\fR[\fB/\fImask\fR]
 Matches \fIvalue\fR either exactly or with optional \fImask\fR in the metadata

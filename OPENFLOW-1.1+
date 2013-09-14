@@ -168,6 +168,12 @@ didn't compare the specs carefully yet.)
       optimization in some cases for the software switch.
       [optional for OF1.3+]
 
+General
+-----
+
+    * ovs-ofctl(8) often lists as Nicira extensions features that
+      later OpenFlow versions support in standard ways.
+
 
 How to contribute
 -----------------

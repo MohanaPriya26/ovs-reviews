@@ -597,12 +597,14 @@ handle_miss_upcalls(struct udpif *udpif, struct list *upcalls)
 {
     struct dpif_op *opsp[FLOW_MISS_MAX_BATCH];
     struct dpif_op ops[FLOW_MISS_MAX_BATCH];
+    void *tmp_actions[FLOW_MISS_MAX_BATCH];
+    size_t n_tmp_actions, n_upcalls, n_ops;
     struct upcall *upcall, *next;
     struct flow_miss_batch *fmb;
-    size_t n_upcalls, n_ops, i;
     struct flow_miss *miss;
     unsigned int reval_seq;
     bool fail_open;
+    size_t i;
 
     /* Extract the flow from each upcall.  Construct in fmb->misses a hash
      * table that maps each unique flow to a 'struct flow_miss'.
@@ -741,18 +743,31 @@ handle_miss_upcalls(struct udpif *udpif, struct list *upcalls)
      * The loop fills 'ops' with an array of operations to execute in the
      * datapath. */
     n_ops = 0;
+    n_tmp_actions = 0;
     LIST_FOR_EACH (upcall, list_node, upcalls) {
         struct flow_miss *miss = upcall->flow_miss;
         struct ofpbuf *packet = upcall->dpif_upcall.packet;
+        struct nlattr *odp_actions;
+        size_t odp_actions_len;
 
         if (miss->xout.slow) {
             struct rule_dpif *rule;
+            struct xlate_out xout;
             struct xlate_in xin;
 
             rule_dpif_lookup(miss->ofproto, &miss->flow, NULL, &rule);
             xlate_in_init(&xin, miss->ofproto, &miss->flow, rule, 0, packet);
-            xlate_actions_for_side_effects(&xin);
+            xlate_actions(&xin, &xout);
             rule_dpif_unref(rule);
+
+            odp_actions = ofpbuf_steal_data(&xout.odp_actions);
+            odp_actions_len = xout.odp_actions.size;
+            xlate_out_uninit(&xout);
+
+            tmp_actions[n_tmp_actions++] = odp_actions;
+        } else {
+            odp_actions = miss->xout.odp_actions.data;
+            odp_actions_len = miss->xout.odp_actions.size;
         }
 
         if (miss->xout.odp_actions.size) {
@@ -776,8 +791,8 @@ handle_miss_upcalls(struct udpif *udpif, struct list *upcalls)
             op->u.execute.key = miss->key;
             op->u.execute.key_len = miss->key_len;
             op->u.execute.packet = packet;
-            op->u.execute.actions = miss->xout.odp_actions.data;
-            op->u.execute.actions_len = miss->xout.odp_actions.size;
+            op->u.execute.actions = odp_actions;
+            op->u.execute.actions_len = odp_actions_len;
         }
     }
 
@@ -786,6 +801,11 @@ handle_miss_upcalls(struct udpif *udpif, struct list *upcalls)
         opsp[i] = &ops[i];
     }
     dpif_operate(udpif->dpif, opsp, n_ops);
+
+    /* Free temporary actions. */
+    for (i = 0; i < n_tmp_actions; i++) {
+        free(tmp_actions[i]);
+    }
 
     /* Special case for fail-open mode.
      *

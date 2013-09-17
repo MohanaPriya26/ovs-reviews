@@ -448,7 +448,7 @@ udpif_miss_handler(void *arg)
     struct list misses = LIST_INITIALIZER(&misses);
     struct handler *handler = arg;
 
-    set_subprogram_name("miss_handler");
+    set_subprogram_name("miss_handler_%u", ovsthread_id_self());
     for (;;) {
         size_t i;
 

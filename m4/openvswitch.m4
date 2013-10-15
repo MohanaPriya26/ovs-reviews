@@ -427,3 +427,19 @@ dnl OVS_CHECK_INCLUDE_NEXT
 AC_DEFUN([OVS_CHECK_INCLUDE_NEXT],
   [AC_REQUIRE([gl_CHECK_NEXT_HEADERS])
    gl_CHECK_NEXT_HEADERS([$1])])
+
+dnl OVS_CHECK_LIBURCU.
+dnl
+dnl If liburcu-qsbr and <urcu-qsbr.h> are available, links against the
+dnl library and defines HAVE_LIBURCU.
+AC_DEFUN([OVS_CHECK_LIBURCU],
+  [save_LIBS=$LIBS
+   LIBS="-lurcu-qsbr $LIBS"
+   AC_LINK_IFELSE(
+     [AC_LANG_PROGRAM([#include <urcu-qsbr.h>
+#include <urcu-call-rcu.h>
+], [rcu_quiescent_state();])],
+     [AC_DEFINE([HAVE_LIBURCU], 1,
+                [Define to 1 if liburcu-qsbr and <urcu-qsbr.h> are
+                 available.])],
+     [LIBS=$save_LIBS])])

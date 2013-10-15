@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <inttypes.h>
+#include <urcu-qsbr.h>
 
 #include "connmgr.h"
 #include "coverage.h"
@@ -288,6 +289,8 @@ void
 udpif_set_threads(struct udpif *udpif, size_t n_handlers,
                   size_t n_revalidators)
 {
+    rcu_thread_offline();
+
     /* Stop the old threads (if any). */
     if (udpif->handlers &&
         (udpif->n_handlers != n_handlers
@@ -398,6 +401,8 @@ udpif_set_threads(struct udpif *udpif, size_t n_handlers,
         xpthread_create(&udpif->dispatcher, NULL, udpif_dispatcher, udpif);
         xpthread_create(&udpif->flow_dumper, NULL, udpif_flow_dumper, udpif);
     }
+
+    rcu_thread_online();
 }
 
 /* Notifies 'udpif' that something changed which may render previous

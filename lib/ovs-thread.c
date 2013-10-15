@@ -20,6 +20,7 @@
 #include <poll.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <urcu-qsbr.h>
 #include "compiler.h"
 #include "hash.h"
 #include "poll-loop.h"
@@ -185,7 +186,12 @@ void
 ovs_mutex_cond_wait(pthread_cond_t *cond, const struct ovs_mutex *mutex_)
 {
     struct ovs_mutex *mutex = CONST_CAST(struct ovs_mutex *, mutex_);
-    int error = pthread_cond_wait(cond, &mutex->lock);
+    int error;
+
+    rcu_thread_offline();
+    error = pthread_cond_wait(cond, &mutex->lock);
+    rcu_thread_online();
+
     if (OVS_UNLIKELY(error)) {
         ovs_abort(error, "pthread_cond_wait failed");
     }
@@ -198,6 +204,12 @@ struct ovsthread_aux {
     void *arg;
 };
 
+static void
+unregister_rcu(void *unused OVS_UNUSED)
+{
+    rcu_unregister_thread();
+}
+
 static void *
 ovsthread_wrapper(void *aux_)
 {
@@ -206,14 +218,21 @@ ovsthread_wrapper(void *aux_)
     struct ovsthread_aux *auxp = aux_;
     struct ovsthread_aux aux;
     unsigned int id;
+    void *retval;
 
     atomic_add(&next_id, 1, &id);
     *ovsthread_id_get() = id;
 
+    rcu_register_thread();
+
     aux = *auxp;
     free(auxp);
 
-    return aux.start(aux.arg);
+    pthread_cleanup_push(unregister_rcu, NULL);
+    retval = aux.start(aux.arg);
+    pthread_cleanup_pop(true);
+
+    return retval;
 }
 
 void

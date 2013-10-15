@@ -25,6 +25,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <urcu-qsbr.h>
 #include "coverage.h"
 #include "dummy.h"
 #include "dynamic-string.h"
@@ -97,6 +98,8 @@ do_init_time(void)
     struct timespec ts;
 
     coverage_init();
+    rcu_register_thread();
+    rcu_read_lock();
 
     init_clock(&monotonic_clock, (!clock_gettime(CLOCK_MONOTONIC, &ts)
                                   ? CLOCK_MONOTONIC
@@ -261,6 +264,12 @@ time_poll(struct pollfd *pollfds, int n_pollfds, HANDLE *handles OVS_UNUSED,
             time_left = timeout_when - now;
         }
 
+        if (!time_left) {
+            rcu_quiescent_state();
+        } else {
+            rcu_thread_offline();
+        }
+
 #ifndef _WIN32
         retval = poll(pollfds, n_pollfds, time_left);
         if (retval < 0) {
@@ -280,6 +289,10 @@ time_poll(struct pollfd *pollfds, int n_pollfds, HANDLE *handles OVS_UNUSED,
             retval = -EINVAL;
         }
 #endif
+
+        if (time_left) {
+            rcu_thread_online();
+        }
 
         if (deadline <= time_msec()) {
             fatal_signal_handler(SIGALRM);

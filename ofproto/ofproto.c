@@ -22,6 +22,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <urcu-qsbr.h>
 #include "bitmap.h"
 #include "byte-order.h"
 #include "classifier.h"
@@ -1905,11 +1906,13 @@ ofproto_add_flow(struct ofproto *ofproto, const struct match *match,
     rule = rule_from_cls_rule(classifier_find_match_exactly(
                                   &ofproto->tables[0].cls, match, priority));
     if (rule) {
-        ovs_mutex_lock(&rule->mutex);
-        must_add = !ofpacts_equal(rule->actions->ofpacts,
-                                  rule->actions->ofpacts_len,
+        struct rule_actions *actions;
+
+        rcu_read_lock();
+        actions = rule_get_actions(rule);
+        must_add = !ofpacts_equal(actions->ofpacts, actions->ofpacts_len,
                                   ofpacts, ofpacts_len);
-        ovs_mutex_unlock(&rule->mutex);
+        rcu_read_unlock();
     } else {
         must_add = true;
     }
@@ -2542,23 +2545,8 @@ ofproto_rule_unref(struct rule *rule)
 
 struct rule_actions *
 rule_get_actions(const struct rule *rule)
-    OVS_EXCLUDED(rule->mutex)
 {
-    struct rule_actions *actions;
-
-    ovs_mutex_lock(&rule->mutex);
-    actions = rule_get_actions__(rule);
-    ovs_mutex_unlock(&rule->mutex);
-
-    return actions;
-}
-
-struct rule_actions *
-rule_get_actions__(const struct rule *rule)
-    OVS_REQUIRES(rule->mutex)
-{
-    rule_actions_ref(rule->actions);
-    return rule->actions;
+    return rcu_dereference(rule->actions);
 }
 
 static void
@@ -2566,7 +2554,7 @@ ofproto_rule_destroy__(struct rule *rule)
     OVS_NO_THREAD_SAFETY_ANALYSIS
 {
     cls_rule_destroy(CONST_CAST(struct cls_rule *, &rule->cr));
-    rule_actions_unref(rule->actions);
+    rule_actions_destroy(rule->actions);
     ovs_mutex_destroy(&rule->mutex);
     ovs_refcount_destroy(&rule->ref_count);
     rule->ofproto->ofproto_class->rule_dealloc(rule);
@@ -2584,7 +2572,6 @@ rule_actions_create(const struct ofproto *ofproto,
     struct rule_actions *actions;
 
     actions = xmalloc(sizeof *actions);
-    ovs_refcount_init(&actions->ref_count);
     actions->ofpacts = xmemdup(ofpacts, ofpacts_len);
     actions->ofpacts_len = ofpacts_len;
     actions->provider_meter_id
@@ -2594,24 +2581,23 @@ rule_actions_create(const struct ofproto *ofproto,
     return actions;
 }
 
-/* Increments 'actions''s ref_count. */
-void
-rule_actions_ref(struct rule_actions *actions)
+static void
+rule_actions_destroy_cb(struct rcu_head *rcu_head)
 {
-    if (actions) {
-        ovs_refcount_ref(&actions->ref_count);
-    }
+    struct rule_actions *actions
+        = CONTAINER_OF(rcu_head, struct rule_actions, rcu_head);
+
+    free(actions->ofpacts);
+    free(actions);
 }
 
 /* Decrements 'actions''s ref_count and frees 'actions' if the ref_count
  * reaches 0. */
 void
-rule_actions_unref(struct rule_actions *actions)
+rule_actions_destroy(struct rule_actions *actions)
 {
-    if (actions && ovs_refcount_unref(&actions->ref_count) == 1) {
-        ovs_refcount_destroy(&actions->ref_count);
-        free(actions->ofpacts);
-        free(actions);
+    if (actions) {
+        call_rcu(&actions->rcu_head, rule_actions_destroy_cb);
     }
 }
 
@@ -3563,7 +3549,8 @@ handle_flow_stats_request(struct ofconn *ofconn,
         created = rule->created;
         used = rule->used;
         modified = rule->modified;
-        actions = rule_get_actions__(rule);
+        rcu_read_lock();
+        actions = rule_get_actions(rule);
         flags = rule->flags;
         ovs_mutex_unlock(&rule->mutex);
 
@@ -3581,7 +3568,7 @@ handle_flow_stats_request(struct ofconn *ofconn,
         fs.flags = flags;
         ofputil_append_flow_stats_reply(&fs, &replies);
 
-        rule_actions_unref(actions);
+        rcu_read_unlock();
     }
 
     rule_collection_unref(&rules);
@@ -3603,7 +3590,8 @@ flow_stats_ds(struct rule *rule, struct ds *results)
                                                  &packet_count, &byte_count);
 
     ovs_mutex_lock(&rule->mutex);
-    actions = rule_get_actions__(rule);
+    rcu_read_lock();
+    actions = rule_get_actions(rule);
     created = rule->created;
     ovs_mutex_unlock(&rule->mutex);
 
@@ -3621,7 +3609,7 @@ flow_stats_ds(struct rule *rule, struct ds *results)
 
     ds_put_cstr(results, "\n");
 
-    rule_actions_unref(actions);
+    rcu_read_unlock();
 }
 
 /* Adds a pretty-printed description of all flows to 'results', including
@@ -4025,7 +4013,9 @@ add_flow(struct ofproto *ofproto, struct ofconn *ofconn,
 
     *CONST_CAST(uint8_t *, &rule->table_id) = table - ofproto->tables;
     rule->flags = fm->flags & OFPUTIL_FF_STATE;
-    rule->actions = rule_actions_create(ofproto, fm->ofpacts, fm->ofpacts_len);
+    rcu_assign_pointer(rule->actions,
+                       rule_actions_create(ofproto,
+                                           fm->ofpacts, fm->ofpacts_len));
     list_init(&rule->meter_list_node);
     rule->eviction_group = NULL;
     list_init(&rule->expirable);
@@ -4122,9 +4112,7 @@ modify_flows__(struct ofproto *ofproto, struct ofconn *ofconn,
             new_actions = rule_actions_create(ofproto,
                                               fm->ofpacts, fm->ofpacts_len);
 
-            ovs_mutex_lock(&rule->mutex);
-            rule->actions = new_actions;
-            ovs_mutex_unlock(&rule->mutex);
+            rcu_assign_pointer(rule->actions, new_actions);
 
             rule->ofproto->ofproto_class->rule_modify_actions(rule,
                                                               reset_counters);
@@ -6207,11 +6195,11 @@ ofopgroup_complete(struct ofopgroup *group)
 
                     ovs_mutex_lock(&rule->mutex);
                     old_actions = rule->actions;
-                    rule->actions = op->actions;
+                    rcu_assign_pointer(rule->actions, op->actions);
                     ovs_mutex_unlock(&rule->mutex);
 
                     op->actions = NULL;
-                    rule_actions_unref(old_actions);
+                    rule_actions_destroy(old_actions);
                 }
                 rule->flags = op->flags;
             }
@@ -6297,7 +6285,7 @@ ofoperation_destroy(struct ofoperation *op)
         hmap_remove(&group->ofproto->deletions, &op->hmap_node);
     }
     list_remove(&op->group_node);
-    rule_actions_unref(op->actions);
+    rule_actions_destroy(op->actions);
     free(op);
 }
 

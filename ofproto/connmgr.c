@@ -20,6 +20,7 @@
 
 #include <errno.h>
 #include <stdlib.h>
+#include <urcu-qsbr.h>
 
 #include "coverage.h"
 #include "fail-open.h"

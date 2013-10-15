@@ -20,6 +20,7 @@
 #include "ofproto/ofproto-provider.h"
 
 #include <errno.h>
+#include <urcu-qsbr.h>
 
 #include "bfd.h"
 #include "bond.h"
@@ -3483,6 +3484,7 @@ trace_format_rule(struct ds *result, int level, const struct rule_dpif *rule)
     cls_rule_format(&rule->up.cr, result);
     ds_put_char(result, '\n');
 
+    rcu_read_lock();
     actions = rule_dpif_get_actions(rule);
 
     ds_put_char_multiple(result, '\t', level);
@@ -3490,7 +3492,7 @@ trace_format_rule(struct ds *result, int level, const struct rule_dpif *rule)
     ofpacts_format(actions->ofpacts, actions->ofpacts_len, result);
     ds_put_char(result, '\n');
 
-    rule_actions_unref(actions);
+    rcu_read_unlock();
 }
 
 static void

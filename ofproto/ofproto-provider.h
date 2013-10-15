@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2010, 2011, 2012, 2013 Nicira, Inc.
+ * Copyright (c) 2009, 2010, 2011, 2012, 2013, 2014 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@
  * structures for details.
  */
 
+#include <urcu-call-rcu.h>
 #include "cfm.h"
 #include "classifier.h"
 #include "guarded-list.h"
@@ -376,7 +377,7 @@ struct rule {
 
     /* OpenFlow actions.  See struct rule_actions for more thread-safety
      * notes. */
-    struct rule_actions *actions OVS_GUARDED;
+    struct rule_actions *actions;
 
     /* In owning meter's 'rules' list.  An empty list if there is no meter. */
     struct list meter_list_node OVS_GUARDED_BY(ofproto_mutex);
@@ -398,10 +399,7 @@ struct rule {
 void ofproto_rule_ref(struct rule *);
 void ofproto_rule_unref(struct rule *);
 
-struct rule_actions *rule_get_actions(const struct rule *rule)
-    OVS_EXCLUDED(rule->mutex);
-struct rule_actions *rule_get_actions__(const struct rule *rule)
-    OVS_REQUIRES(rule->mutex);
+struct rule_actions *rule_get_actions(const struct rule *);
 
 /* Returns true if 'rule' is an OpenFlow 1.3 "table-miss" rule, false
  * otherwise.
@@ -426,10 +424,9 @@ rule_is_table_miss(const struct rule *rule)
  * 'rule' is the rule for which 'rule->actions == actions') or that owns a
  * reference to 'actions->ref_count' (or both). */
 struct rule_actions {
-    struct ovs_refcount ref_count;
-
     /* These members are immutable: they do not change during the struct's
      * lifetime.  */
+    struct rcu_head rcu_head;
     struct ofpact *ofpacts;     /* Sequence of "struct ofpacts". */
     unsigned int ofpacts_len;   /* Size of 'ofpacts', in bytes. */
     uint32_t provider_meter_id; /* Datapath meter_id, or UINT32_MAX. */
@@ -437,8 +434,7 @@ struct rule_actions {
 
 struct rule_actions *rule_actions_create(const struct ofproto *,
                                          const struct ofpact *, size_t);
-void rule_actions_ref(struct rule_actions *);
-void rule_actions_unref(struct rule_actions *);
+void rule_actions_destroy(struct rule_actions *);
 
 /* A set of rules to which an OpenFlow operation applies. */
 struct rule_collection {

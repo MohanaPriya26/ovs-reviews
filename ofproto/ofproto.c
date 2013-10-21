@@ -4041,6 +4041,18 @@ modify_flows__(struct ofproto *ofproto, struct ofconn *ofconn,
     enum ofperr error;
     size_t i;
 
+    /* Verify actions before we start to modify any rules, to avoid partial
+     * flow table modifications. */
+    for (i = 0; i < rules->n; i++) {
+        struct rule *rule = rules->rules[i];
+
+        error = ofpacts_check(fm->ofpacts, fm->ofpacts_len, &fm->match.flow,
+                              u16_to_ofp(ofproto->max_ports), rule->table_id);
+        if (error) {
+            return error;
+        }
+    }
+
     type = fm->command == OFPFC_ADD ? OFOPERATION_REPLACE : OFOPERATION_MODIFY;
     group = ofopgroup_create(ofproto, ofconn, request, fm->buffer_id);
     error = OFPERR_OFPBRC_EPERM;
@@ -4057,13 +4069,6 @@ modify_flows__(struct ofproto *ofproto, struct ofconn *ofconn,
             error = 0;
         } else {
             continue;
-        }
-
-        /* Verify actions. */
-        error = ofpacts_check(fm->ofpacts, fm->ofpacts_len, &fm->match.flow,
-                              u16_to_ofp(ofproto->max_ports), rule->table_id);
-        if (error) {
-            return error;
         }
 
         actions_changed = !ofpacts_equal(fm->ofpacts, fm->ofpacts_len,

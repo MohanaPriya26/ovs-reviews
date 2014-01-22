@@ -49,6 +49,7 @@
 #include "odp-util.h"
 #include "ofp-print.h"
 #include "ofpbuf.h"
+#include "ovs-rcu.h"
 #include "packets.h"
 #include "poll-loop.h"
 #include "random.h"
@@ -249,7 +250,7 @@ struct dp_netdev_flow {
      * The classifier owns one reference.
      * Any thread trying to keep a rule from being freed should hold its own
      * reference. */
-    struct ovs_refcount ref_cnt;
+    struct ovs_rcuref rcuref;
 
     /* Protects members marked OVS_GUARDED.
      *
@@ -269,9 +270,8 @@ struct dp_netdev_flow {
     struct dp_netdev_actions *actions OVS_GUARDED;
 };
 
-static struct dp_netdev_flow *dp_netdev_flow_ref(
-    const struct dp_netdev_flow *);
-static void dp_netdev_flow_unref(struct dp_netdev_flow *);
+static void dp_netdev_flow_unref(struct dp_netdev_flow *,
+                                 enum ovs_rcuref_type);
 
 /* Contained by struct dp_netdev_flow's 'stats' member.  */
 struct dp_netdev_flow_stats {
@@ -882,39 +882,35 @@ dp_netdev_remove_flow(struct dp_netdev *dp, struct dp_netdev_flow *flow)
 
     classifier_remove(&dp->cls, cr);
     hmap_remove(&dp->flow_table, node);
-    dp_netdev_flow_unref(flow);
-}
-
-static struct dp_netdev_flow *
-dp_netdev_flow_ref(const struct dp_netdev_flow *flow_)
-{
-    struct dp_netdev_flow *flow = CONST_CAST(struct dp_netdev_flow *, flow_);
-    if (flow) {
-        ovs_refcount_ref(&flow->ref_cnt);
-    }
-    return flow;
+    dp_netdev_flow_unref(flow, OVS_RCUREF_OWNER);
 }
 
 static void
-dp_netdev_flow_unref(struct dp_netdev_flow *flow)
+dp_netdev_flow_free_cb(struct rcu_head *head)
 {
-    if (flow && ovs_refcount_unref(&flow->ref_cnt) == 1) {
-        struct dp_netdev_flow_stats *bucket;
-        size_t i;
+    struct dp_netdev_flow *flow
+        = OVS_RCUREF_CONTAINER_OF(head, struct dp_netdev_flow, rcuref);
+    struct dp_netdev_flow_stats *bucket;
+    size_t i;
 
-        OVSTHREAD_STATS_FOR_EACH_BUCKET (bucket, i, &flow->stats) {
-            ovs_mutex_destroy(&bucket->mutex);
-            free_cacheline(bucket);
-        }
-        ovsthread_stats_destroy(&flow->stats);
-
-        cls_rule_destroy(CONST_CAST(struct cls_rule *, &flow->cr));
-        ovs_mutex_lock(&flow->mutex);
-        dp_netdev_actions_unref(flow->actions);
-        ovs_mutex_unlock(&flow->mutex);
-        ovs_mutex_destroy(&flow->mutex);
-        free(flow);
+    OVSTHREAD_STATS_FOR_EACH_BUCKET (bucket, i, &flow->stats) {
+        ovs_mutex_destroy(&bucket->mutex);
+        free_cacheline(bucket);
     }
+    ovsthread_stats_destroy(&flow->stats);
+
+    cls_rule_destroy(CONST_CAST(struct cls_rule *, &flow->cr));
+    ovs_mutex_lock(&flow->mutex);
+    dp_netdev_actions_unref(flow->actions);
+    ovs_mutex_unlock(&flow->mutex);
+    ovs_mutex_destroy(&flow->mutex);
+    free(flow);
+}
+
+static void
+dp_netdev_flow_unref(struct dp_netdev_flow *flow, enum ovs_rcuref_type type)
+{
+    ovs_rcuref_unref(&flow->rcuref, type, dp_netdev_flow_free_cb);
 }
 
 static void
@@ -1032,8 +1028,11 @@ dp_netdev_lookup_flow(const struct dp_netdev *dp, const struct flow *flow)
     struct dp_netdev_flow *netdev_flow;
 
     fat_rwlock_rdlock(&dp->cls.rwlock);
-    netdev_flow = dp_netdev_flow_cast(classifier_lookup(&dp->cls, flow, NULL));
-    dp_netdev_flow_ref(netdev_flow);
+    netdev_flow = rcu_dereference(
+        dp_netdev_flow_cast(classifier_lookup(&dp->cls, flow, NULL)));
+    if (netdev_flow) {
+        ovs_rcuref_ref(&netdev_flow->rcuref, OVS_RCUREF_NOTOWNER);
+    }
     fat_rwlock_unlock(&dp->cls.rwlock);
 
     return netdev_flow;
@@ -1048,7 +1047,8 @@ dp_netdev_find_flow(const struct dp_netdev *dp, const struct flow *flow)
     HMAP_FOR_EACH_WITH_HASH (netdev_flow, node, flow_hash(flow, 0),
                              &dp->flow_table) {
         if (flow_equal(&netdev_flow->flow, flow)) {
-            return dp_netdev_flow_ref(netdev_flow);
+            ovs_rcuref_ref(&netdev_flow->rcuref, OVS_RCUREF_NOTOWNER);
+            return netdev_flow;
         }
     }
 
@@ -1187,7 +1187,7 @@ dpif_netdev_flow_get(const struct dpif *dpif,
         }
         ovs_mutex_unlock(&netdev_flow->mutex);
 
-        dp_netdev_flow_unref(netdev_flow);
+        dp_netdev_flow_unref(netdev_flow, OVS_RCUREF_NOTOWNER);
 
         if (actionsp) {
             *actionsp = ofpbuf_clone_data(actions->actions, actions->size);
@@ -1212,7 +1212,7 @@ dp_netdev_flow_add(struct dp_netdev *dp, const struct flow *flow,
 
     netdev_flow = xzalloc(sizeof *netdev_flow);
     *CONST_CAST(struct flow *, &netdev_flow->flow) = *flow;
-    ovs_refcount_init(&netdev_flow->ref_cnt);
+    ovs_rcuref_init(&netdev_flow->rcuref);
 
     ovs_mutex_init(&netdev_flow->mutex);
     ovs_mutex_lock(&netdev_flow->mutex);
@@ -1317,7 +1317,8 @@ dpif_netdev_flow_put(struct dpif *dpif, const struct dpif_flow_put *put)
             /* Overlapping flow. */
             error = EINVAL;
         }
-        dp_netdev_flow_unref(netdev_flow);
+
+        dp_netdev_flow_unref(netdev_flow, OVS_RCUREF_NOTOWNER);
     }
     ovs_mutex_unlock(&dp->flow_mutex);
 
@@ -1391,7 +1392,7 @@ dpif_netdev_flow_dump_next(const struct dpif *dpif, void *state_,
     node = hmap_at_position(&dp->flow_table, &state->bucket, &state->offset);
     if (node) {
         netdev_flow = CONTAINER_OF(node, struct dp_netdev_flow, node);
-        dp_netdev_flow_ref(netdev_flow);
+        ovs_rcuref_ref(&netdev_flow->rcuref, OVS_RCUREF_NOTOWNER);
     }
     fat_rwlock_unlock(&dp->cls.rwlock);
     if (!node) {
@@ -1440,7 +1441,7 @@ dpif_netdev_flow_dump_next(const struct dpif *dpif, void *state_,
         }
     }
 
-    dp_netdev_flow_unref(netdev_flow);
+    dp_netdev_flow_unref(netdev_flow, OVS_RCUREF_NOTOWNER);
 
     return 0;
 }

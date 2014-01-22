@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2012, 2013 Nicira, Inc.
+ * Copyright (c) 2008, 2009, 2010, 2012, 2013, 2014 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -276,19 +276,4 @@ hmap_at_position(const struct hmap *hmap,
     *bucketp = 0;
     *offsetp = 0;
     return NULL;
-}
-
-/* Returns true if 'node' is in 'hmap', false otherwise. */
-bool
-hmap_contains(const struct hmap *hmap, const struct hmap_node *node)
-{
-    struct hmap_node *p;
-
-    for (p = hmap_first_in_bucket(hmap, node->hash); p; p = p->next) {
-        if (p == node) {
-            return true;
-        }
-    }
-
-    return false;
 }

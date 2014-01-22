@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008, 2009, 2010, 2012, 2013 Nicira, Inc.
+ * Copyright (c) 2008, 2009, 2010, 2012, 2013, 2014 Nicira, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,8 +140,6 @@ static inline struct hmap_node *hmap_next_with_hash(const struct hmap_node *);
 static inline struct hmap_node *hmap_first_in_bucket(const struct hmap *,
                                                      size_t hash);
 static inline struct hmap_node *hmap_next_in_bucket(const struct hmap_node *);
-
-bool hmap_contains(const struct hmap *, const struct hmap_node *);
 
 /* Iteration. */
 
